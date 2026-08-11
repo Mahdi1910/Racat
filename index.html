@@ -58,11 +58,10 @@
             <div id="canvas-wrapper">
                 <video id="video" playsinline muted></video>
                 <canvas id="output"></canvas>
-                <canvas id="lighting-sample" class="lighting-sample" width="32" height="32" hidden></canvas>
 
                 <div id="positioning-overlay" class="positioning-overlay" hidden>
-                    <div id="face-target" class="face-target" aria-hidden="true">
-                        <span class="face-target-check">✓</span>
+                    <div id="face-position-band" class="face-position-band is-waiting">
+                        <span id="face-position-label" class="face-position-label">يجب أن يكون وجهك هنا</span>
                     </div>
                     <div id="countdown-display" class="countdown-display" hidden></div>
                     <div id="setup-message" class="setup-message">انظر إلى الكاميرا</div>

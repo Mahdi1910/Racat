@@ -59,9 +59,9 @@ $requiredMarkup = @(
     'id="model-speed"',
     'id="main-view"',
     'id="positioning-overlay"',
-    'id="face-target"',
+    'id="face-position-band"',
+    'id="face-position-label"',
     'id="setup-message"',
-    'id="lighting-sample"',
     'id="startBtn"',
     'onclick="startApp()"',
     'id="counter-display"',
@@ -101,7 +101,7 @@ $requiredSelectors = @(
     '.ai-check-animation',
     '.download-progress-track',
     '.positioning-overlay',
-    '.face-target',
+    '.face-position-band',
     '@media (prefers-reduced-motion: reduce)',
     '@media (max-width: 768px), (pointer: coarse)'
 )
@@ -137,12 +137,9 @@ $requiredBehavior = @(
     'ModelManager.createModelManager({',
     'SetupGuide.classifySetup(',
     "result === 'FACE_NOT_VISIBLE'",
-    "result === 'IMPROVE_LIGHTING'",
-    "result === 'FIX_PHONE_ANGLE'",
     "result === 'MOVE_BACK_ONE_STEP'",
     "result === 'MOVE_CLOSER_ONE_STEP'",
-    "result === 'FACE_TOO_LOW'",
-    "result === 'FACE_TOO_HIGH'",
+    "result === 'FACE_OUTSIDE_TARGET'",
     "result === 'POSITION_CORRECT'",
     'StandingDetection.createStandingDetector()',
     'StandingDetection.runCountdown({',
@@ -185,14 +182,47 @@ foreach ($token in $requiredModelManagerBehavior) {
 }
 
 $requiredSetupGuideBehavior = @(
-    'faceBandBottom: 0.30',
-    'minimumBrightness: 45',
+    'targetBandBottom: 0.30',
     'function classifySetup(features, config = SETUP_CONFIG)',
     "return 'FACE_NOT_VISIBLE'",
-    "return 'POSITION_CORRECT'"
+    "'POSITION_CORRECT'"
 )
 foreach ($token in $requiredSetupGuideBehavior) {
     Assert-Condition ($setupGuide.Contains($token)) "setup-guide.js lost required behavior: $token"
+}
+
+$removedGuideMarkup = @(
+    'id="face-target"',
+    'id="lighting-sample"'
+)
+foreach ($token in $removedGuideMarkup) {
+    Assert-Condition (-not $html.Contains($token)) "index.html still contains removed guide markup: $token"
+}
+
+$removedGuideSelectors = @(
+    '.face-target',
+    '.lighting-sample'
+)
+foreach ($token in $removedGuideSelectors) {
+    Assert-Condition (-not $css.Contains($token)) "styles.css still contains removed guide selector: $token"
+}
+
+$removedFeatureTokens = @(
+    'lightingCanvas',
+    'lightingContext',
+    'lightingMonitor',
+    'sampleLighting',
+    'deviceorientation',
+    'DeviceOrientationEvent',
+    'orientationListenerActive',
+    'startOrientationMonitoring',
+    'stopOrientationMonitoring',
+    'FIX_PHONE_ANGLE',
+    'IMPROVE_LIGHTING'
+)
+foreach ($token in $removedFeatureTokens) {
+    Assert-Condition (-not $js.Contains($token)) "app.js still contains removed setup behavior: $token"
+    Assert-Condition (-not $setupGuide.Contains($token)) "setup-guide.js still contains removed setup behavior: $token"
 }
 
 $requiredLauncherBehavior = @(

@@ -2,8 +2,6 @@ let detector;
 let video;
 let canvas;
 let ctx;
-let lightingCanvas;
-let lightingContext;
 let modelManager;
 
 let rakatCount = 1;
@@ -12,17 +10,12 @@ let isCurrentlyDown = false;
 let isRunning = false;
 let appState = null;
 let standingDetector = StandingDetection.createStandingDetector();
-let lightingMonitor = SetupGuide.createLightingMonitor();
 let setupRunId = 0;
 let correctPositionSince = null;
 let invalidCountdownSince = null;
 let lastSetupResult = null;
 let lastSpokenResult = null;
 let lastInstructionSpokenAt = -Infinity;
-let lastLightingSampleAt = -Infinity;
-let lightingGood = true;
-let phoneOrientation = { beta: null, gamma: null };
-let orientationListenerActive = false;
 
 const AppState = Object.freeze({
     CHECKING_MODEL: 'CHECKING_MODEL',
@@ -48,12 +41,8 @@ const COUNTDOWN_WORDS = Object.freeze({
 
 const SETUP_MESSAGES = Object.freeze({
     FACE_NOT_VISIBLE: 'الوجه غير ظاهر، انظر إلى الكاميرا',
-    IMPROVE_LIGHTING: 'الإضاءة ضعيفة، حسّن الإضاءة',
-    FIX_PHONE_ANGLE: 'اجعل الهاتف شبه عمودي',
     MOVE_BACK_ONE_STEP: 'ارجع خطوة واحدة إلى الخلف',
     MOVE_CLOSER_ONE_STEP: 'اقترب خطوة واحدة',
-    FACE_TOO_LOW: 'ارفع اتجاه الهاتف قليلاً حتى يظهر وجهك في أعلى الشاشة',
-    FACE_TOO_HIGH: 'اخفض اتجاه الهاتف قليلاً',
     POSITION_CORRECT: 'ممتاز، توقف في مكانك'
 });
 
@@ -184,7 +173,6 @@ async function startApp() {
 
     try {
         await setupCamera();
-        await startOrientationMonitoring();
         statusDot.classList.add('active');
         isRunning = true;
         beginPositioning();
@@ -233,82 +221,29 @@ function speak(text) {
     }
 }
 
-function handleOrientation(event) {
-    phoneOrientation = { beta: event.beta, gamma: event.gamma };
-}
-
-async function startOrientationMonitoring() {
-    phoneOrientation = { beta: null, gamma: null };
-
-    try {
-        if (typeof DeviceOrientationEvent !== 'undefined'
-            && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const permission = await DeviceOrientationEvent.requestPermission();
-            if (permission !== 'granted') return;
-        }
-
-        if ('DeviceOrientationEvent' in window) {
-            window.addEventListener('deviceorientation', handleOrientation);
-            orientationListenerActive = true;
-        }
-    } catch (error) {
-        orientationListenerActive = false;
-    }
-}
-
-function stopOrientationMonitoring() {
-    if (orientationListenerActive) {
-        window.removeEventListener('deviceorientation', handleOrientation);
-    }
-    orientationListenerActive = false;
-    phoneOrientation = { beta: null, gamma: null };
-}
-
 function beginPositioning() {
     setupRunId++;
     standingDetector.reset();
-    lightingMonitor.reset();
     correctPositionSince = null;
     invalidCountdownSince = null;
     lastSetupResult = null;
     lastSpokenResult = null;
     lastInstructionSpokenAt = -Infinity;
-    lastLightingSampleAt = -Infinity;
-    lightingGood = true;
 
     setAppState(AppState.POSITIONING);
     document.getElementById('status').innerText = 'تجهيز مكان الوقوف';
     document.getElementById('sub-status').innerText = 'اتبع التعليمات حتى يصبح إطار الوجه أخضر';
-    document.getElementById('setup-message').innerText = 'ارجع إلى الخلف واجعل وجهك في أعلى الشاشة';
-    document.getElementById('face-target').classList.remove('is-correct');
-    speak('ارجع إلى الخلف واجعل وجهك في أعلى الشاشة');
-}
-
-function sampleLighting(timestamp) {
-    if (timestamp - lastLightingSampleAt < 250) return lightingGood;
-    lastLightingSampleAt = timestamp;
-
-    try {
-        lightingCanvas = lightingCanvas || document.getElementById('lighting-sample');
-        lightingContext = lightingContext || lightingCanvas.getContext('2d', { willReadFrequently: true });
-        lightingContext.drawImage(video, 0, 0, 32, 32);
-        const imageData = lightingContext.getImageData(0, 0, 32, 32);
-        lightingGood = lightingMonitor.update(SetupGuide.measureBrightness(imageData));
-    } catch (error) {
-        lightingGood = true;
-    }
-
-    return lightingGood;
+    document.getElementById('setup-message').innerText = '';
+    document.getElementById('face-position-band').classList.remove('is-correct');
+    document.getElementById('face-position-label').hidden = false;
+    speak(SETUP_MESSAGES.FACE_NOT_VISIBLE);
 }
 
 function setupMessageForResult(result) {
     if (result === 'FACE_NOT_VISIBLE') return SETUP_MESSAGES.FACE_NOT_VISIBLE;
-    if (result === 'IMPROVE_LIGHTING') return SETUP_MESSAGES.IMPROVE_LIGHTING;
-    if (result === 'FIX_PHONE_ANGLE') return SETUP_MESSAGES.FIX_PHONE_ANGLE;
+    if (result === 'FACE_OUTSIDE_TARGET') return SETUP_MESSAGES.FACE_NOT_VISIBLE;
     if (result === 'MOVE_BACK_ONE_STEP') return SETUP_MESSAGES.MOVE_BACK_ONE_STEP;
     if (result === 'MOVE_CLOSER_ONE_STEP') return SETUP_MESSAGES.MOVE_CLOSER_ONE_STEP;
-    if (result === 'FACE_TOO_LOW') return SETUP_MESSAGES.FACE_TOO_LOW;
-    if (result === 'FACE_TOO_HIGH') return SETUP_MESSAGES.FACE_TOO_HIGH;
     if (result === 'POSITION_CORRECT') return SETUP_MESSAGES.POSITION_CORRECT;
     return SETUP_MESSAGES.FACE_NOT_VISIBLE;
 }
@@ -338,22 +273,21 @@ function cancelCountdown(result, timestamp) {
 }
 
 function processSetupFrame(keypoints, timestamp) {
-    const face = SetupGuide.extractSetupFeatures(
+    const features = SetupGuide.extractSetupFeatures(
         keypoints,
         video.videoWidth,
         video.videoHeight
     );
-    const angle = SetupGuide.normalizePhoneAngle(phoneOrientation);
-    const result = SetupGuide.classifySetup({
-        ...face,
-        lightingGood: sampleLighting(timestamp),
-        ...angle
-    });
-    const faceTarget = document.getElementById('face-target');
+    const result = SetupGuide.classifySetup(features);
+    const facePositionBand = document.getElementById('face-position-band');
+    const facePositionLabel = document.getElementById('face-position-label');
     const setupMessage = document.getElementById('setup-message');
 
-    setupMessage.innerText = setupMessageForResult(result);
-    faceTarget.classList.toggle('is-correct', result === 'POSITION_CORRECT');
+    const distanceResult = result === 'MOVE_BACK_ONE_STEP'
+        || result === 'MOVE_CLOSER_ONE_STEP';
+    setupMessage.innerText = distanceResult ? setupMessageForResult(result) : '';
+    facePositionLabel.hidden = result === 'POSITION_CORRECT';
+    facePositionBand.classList.toggle('is-correct', result === 'POSITION_CORRECT');
 
     if (result === 'POSITION_CORRECT') {
         invalidCountdownSince = null;
@@ -393,7 +327,7 @@ async function beginCountdown() {
 
     const currentRunId = ++setupRunId;
     setAppState(AppState.COUNTDOWN);
-    document.getElementById('setup-message').innerText = SETUP_MESSAGES.POSITION_CORRECT;
+    document.getElementById('setup-message').innerText = '';
 
     await StandingDetection.runCountdown({
         from: StandingDetection.DEFAULT_CONFIG.countdownFrom,
@@ -426,8 +360,6 @@ async function beginCountdown() {
 function enterPrayerTracking() {
     setupRunId++;
     setAppState(AppState.TRACKING_PRAYER);
-    stopOrientationMonitoring();
-    lightingMonitor.reset();
     document.getElementById('setup-message').innerText = '';
     document.getElementById('status').innerText = 'الوضع: وقوف';
     document.getElementById('sub-status').innerText = 'بدأ تتبع الصلاة';
