@@ -3,6 +3,8 @@ let video;
 let canvas;
 let ctx;
 let modelManager;
+let currentSettings = SettingsManager.loadSettings();
+let availableVoices = [];
 
 let rakatCount = 1;
 let standReturnCount = 0;
@@ -23,6 +25,7 @@ const AppState = Object.freeze({
     DOWNLOADING_MODEL: 'DOWNLOADING_MODEL',
     VERIFYING_MODEL: 'VERIFYING_MODEL',
     MAIN_READY: 'MAIN_READY',
+    SETTINGS: 'SETTINGS',
     REQUESTING_CAMERA: 'REQUESTING_CAMERA',
     POSITIONING: 'POSITIONING',
     COUNTDOWN: 'COUNTDOWN',
@@ -31,27 +34,28 @@ const AppState = Object.freeze({
 });
 
 const COUNTDOWN_WORDS = Object.freeze({
-    5: 'خمسة',
-    4: 'أربعة',
-    3: 'ثلاثة',
-    2: 'اثنان',
-    1: 'واحد',
-    0: 'صفر'
+    5: 'countdown_5',
+    4: 'countdown_4',
+    3: 'countdown_3',
+    2: 'countdown_2',
+    1: 'countdown_1',
+    0: 'countdown_0'
 });
 
-const SETUP_MESSAGES = Object.freeze({
-    FACE_NOT_VISIBLE: 'الوجه غير ظاهر، انظر إلى الكاميرا',
-    MOVE_BACK_ONE_STEP: 'ارجع خطوة واحدة إلى الخلف',
-    MOVE_CLOSER_ONE_STEP: 'اقترب خطوة واحدة',
-    POSITION_CORRECT: 'ممتاز، توقف في مكانك'
+const SETUP_MESSAGE_KEYS = Object.freeze({
+    FACE_NOT_VISIBLE: 'face_not_visible',
+    FACE_OUTSIDE_TARGET: 'face_here',
+    MOVE_BACK_ONE_STEP: 'move_back',
+    MOVE_CLOSER_ONE_STEP: 'move_closer',
+    POSITION_CORRECT: 'position_correct'
 });
 
 const UserError = Object.freeze({
-    NETWORK: 'تعذر تنزيل النموذج، تحقق من الإنترنت وحاول مرة أخرى',
-    STORAGE: 'تعذر حفظ النموذج على الجهاز، وفر مساحة وحاول مرة أخرى',
-    MODEL_INVALID: 'ملف الذكاء الاصطناعي غير صالح، أعد تنزيله',
-    CAMERA_DENIED: 'يجب السماح للكاميرا حتى يعمل عداد الركعات',
-    UNKNOWN: 'حدث خطأ غير متوقع، حاول مرة أخرى'
+    NETWORK: 'error_network',
+    STORAGE: 'error_storage',
+    MODEL_INVALID: 'error_model_invalid',
+    CAMERA_DENIED: 'camera_denied',
+    UNKNOWN: 'error_unknown'
 });
 
 function setAppState(nextState) {
@@ -66,19 +70,22 @@ function setAppState(nextState) {
     ]);
     const modelView = document.getElementById('model-view');
     const mainView = document.getElementById('main-view');
+    const settingsView = document.getElementById('settings-view');
     const modelChecking = document.getElementById('model-checking');
     const downloadPanel = document.getElementById('model-download-panel');
     const downloadButton = document.getElementById('downloadModelBtn');
     const progressPanel = document.getElementById('download-progress-panel');
     const retryButton = document.getElementById('retryModelBtn');
     const startButton = document.getElementById('startBtn');
+    const settingsButton = document.getElementById('settingsBtn');
     const resetButton = document.getElementById('resetBtn');
     const positioningOverlay = document.getElementById('positioning-overlay');
     const countdownDisplay = document.getElementById('countdown-display');
 
     const showingModelView = modelStates.has(nextState);
     modelView.hidden = !showingModelView;
-    mainView.hidden = showingModelView;
+    mainView.hidden = showingModelView || nextState === AppState.SETTINGS;
+    settingsView.hidden = nextState !== AppState.SETTINGS;
 
     modelChecking.hidden = ![
         AppState.CHECKING_MODEL,
@@ -94,6 +101,7 @@ function setAppState(nextState) {
     retryButton.hidden = nextState !== AppState.ERROR;
 
     startButton.style.display = nextState === AppState.MAIN_READY ? 'flex' : 'none';
+    settingsButton.style.display = nextState === AppState.MAIN_READY ? 'inline-flex' : 'none';
     resetButton.style.display = nextState === AppState.TRACKING_PRAYER ? 'block' : 'none';
     positioningOverlay.hidden = ![
         AppState.POSITIONING,
@@ -102,15 +110,109 @@ function setAppState(nextState) {
     countdownDisplay.hidden = nextState !== AppState.COUNTDOWN;
 
     if (nextState === AppState.VERIFYING_MODEL) {
-        document.getElementById('model-status-text').innerText = 'جاري التحقق من النموذج وحفظه...';
+        document.getElementById('model-status-text').innerText = textFor('verifying_model');
     } else if (nextState === AppState.CHECKING_MODEL) {
-        document.getElementById('model-status-text').innerText = 'جاري التحقق من النموذج...';
+        document.getElementById('model-status-text').innerText = textFor('checking_model');
     }
+}
+
+function textFor(key, replacements = {}) {
+    return SettingsManager.translate(key, currentSettings.language, replacements);
+}
+
+function applyLanguage() {
+    const language = currentSettings.language;
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.title = textFor('app_title');
+
+    for (const element of document.querySelectorAll('[data-i18n]')) {
+        element.textContent = textFor(element.dataset.i18n);
+    }
+
+    if (appState === AppState.MAIN_READY) {
+        document.getElementById('status').innerText = textFor('model_ready');
+        document.getElementById('sub-status').innerText = textFor('tap_start');
+    }
+}
+
+function populateVoiceOptions() {
+    const voiceSelect = document.getElementById('voiceSelect');
+    if (!voiceSelect || !('speechSynthesis' in window)) return;
+
+    availableVoices = window.speechSynthesis.getVoices();
+    const sortedVoices = SettingsManager.sortVoices(availableVoices, currentSettings.language);
+    voiceSelect.replaceChildren();
+
+    const systemOption = document.createElement('option');
+    systemOption.value = '';
+    systemOption.textContent = textFor('system_voice');
+    voiceSelect.appendChild(systemOption);
+
+    for (const voice of sortedVoices) {
+        const option = document.createElement('option');
+        option.value = voice.voiceURI;
+        option.textContent = `${voice.name} — ${voice.lang}`;
+        voiceSelect.appendChild(option);
+    }
+
+    const savedVoiceExists = sortedVoices.some(voice => voice.voiceURI === currentSettings.voiceURI);
+    voiceSelect.value = savedVoiceExists ? currentSettings.voiceURI : '';
+}
+
+function renderSettings() {
+    document.getElementById('languageSelect').value = currentSettings.language;
+    document.getElementById('quietModeToggle').checked = currentSettings.quietMode;
+    applyLanguage();
+    populateVoiceOptions();
+}
+
+function saveSettingsForm() {
+    currentSettings = SettingsManager.saveSettings({
+        language: document.getElementById('languageSelect').value,
+        voiceURI: document.getElementById('voiceSelect').value,
+        quietMode: document.getElementById('quietModeToggle').checked
+    });
+    return currentSettings;
+}
+
+function handleLanguageChange() {
+    saveSettingsForm();
+    applyLanguage();
+    populateVoiceOptions();
+}
+
+function openSettings() {
+    if (appState !== AppState.MAIN_READY) return;
+    setAppState(AppState.SETTINGS);
+    renderSettings();
+}
+
+function closeSettings() {
+    saveSettingsForm();
+    applyLanguage();
+    setAppState(AppState.MAIN_READY);
+    document.getElementById('status').innerText = textFor('model_ready');
+    document.getElementById('sub-status').innerText = textFor('tap_start');
+}
+
+function initializeSettings() {
+    currentSettings = SettingsManager.loadSettings();
+    document.getElementById('languageSelect').addEventListener('change', handleLanguageChange);
+    document.getElementById('voiceSelect').addEventListener('change', saveSettingsForm);
+    document.getElementById('quietModeToggle').addEventListener('change', saveSettingsForm);
+
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.addEventListener('voiceschanged', populateVoiceOptions);
+    }
+
+    applyLanguage();
+    populateVoiceOptions();
 }
 
 function showModelError(errorCode) {
     const errorElement = document.getElementById('model-error');
-    errorElement.innerText = UserError[errorCode] || UserError.UNKNOWN;
+    errorElement.innerText = textFor(UserError[errorCode] || UserError.UNKNOWN);
     errorElement.hidden = false;
     document.getElementById('model-download-description').hidden = true;
     setAppState(AppState.ERROR);
@@ -168,8 +270,8 @@ async function startApp() {
     const subStatus = document.getElementById('sub-status');
 
     setAppState(AppState.REQUESTING_CAMERA);
-    statusText.innerText = 'جاري الاتصال بالكاميرا...';
-    subStatus.innerText = 'يرجى السماح بالوصول إلى الكاميرا';
+    statusText.innerText = textFor('connecting_camera');
+    subStatus.innerText = textFor('allow_camera');
 
     try {
         await setupCamera();
@@ -179,8 +281,8 @@ async function startApp() {
         renderResult();
     } catch (error) {
         statusDot.classList.remove('active');
-        statusText.innerText = 'تعذر تشغيل الكاميرا';
-        subStatus.innerText = UserError.CAMERA_DENIED;
+        statusText.innerText = textFor('camera_failed');
+        subStatus.innerText = textFor('camera_denied');
         setAppState(AppState.MAIN_READY);
     }
 }
@@ -190,8 +292,8 @@ function resetApp() {
     standReturnCount = 0;
     isCurrentlyDown = false;
     document.getElementById('counter-display').innerText = rakatCount;
-    document.getElementById('sub-status').innerText = 'تمت إعادة عداد الركعات';
-    speak('تمت إعادة عداد الركعات');
+    document.getElementById('sub-status').innerText = textFor('counter_reset');
+    speak('counter_reset');
 }
 
 async function setupCamera() {
@@ -212,13 +314,22 @@ async function setupCamera() {
     await video.play();
 }
 
-function speak(text) {
-    if ('speechSynthesis' in window && text !== '') {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ar-SA';
-        window.speechSynthesis.speak(utterance);
-    }
+function speak(messageKey, replacements = {}) {
+    if (!('speechSynthesis' in window)) return;
+
+    const request = SettingsManager.createSpeechRequest(
+        messageKey,
+        currentSettings,
+        availableVoices,
+        replacements
+    );
+    if (!request) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(request.text);
+    utterance.lang = request.language;
+    if (request.voice) utterance.voice = request.voice;
+    window.speechSynthesis.speak(utterance);
 }
 
 function beginPositioning() {
@@ -231,21 +342,16 @@ function beginPositioning() {
     lastInstructionSpokenAt = -Infinity;
 
     setAppState(AppState.POSITIONING);
-    document.getElementById('status').innerText = 'تجهيز مكان الوقوف';
-    document.getElementById('sub-status').innerText = 'اتبع التعليمات حتى يصبح إطار الوجه أخضر';
+    document.getElementById('status').innerText = textFor('preparing_position');
+    document.getElementById('sub-status').innerText = textFor('follow_guide');
     document.getElementById('setup-message').innerText = '';
     document.getElementById('face-position-band').classList.remove('is-correct');
     document.getElementById('face-position-label').hidden = false;
-    speak(SETUP_MESSAGES.FACE_NOT_VISIBLE);
+    speak('face_not_visible');
 }
 
-function setupMessageForResult(result) {
-    if (result === 'FACE_NOT_VISIBLE') return SETUP_MESSAGES.FACE_NOT_VISIBLE;
-    if (result === 'FACE_OUTSIDE_TARGET') return SETUP_MESSAGES.FACE_NOT_VISIBLE;
-    if (result === 'MOVE_BACK_ONE_STEP') return SETUP_MESSAGES.MOVE_BACK_ONE_STEP;
-    if (result === 'MOVE_CLOSER_ONE_STEP') return SETUP_MESSAGES.MOVE_CLOSER_ONE_STEP;
-    if (result === 'POSITION_CORRECT') return SETUP_MESSAGES.POSITION_CORRECT;
-    return SETUP_MESSAGES.FACE_NOT_VISIBLE;
+function setupMessageKeyForResult(result) {
+    return SETUP_MESSAGE_KEYS[result] || SETUP_MESSAGE_KEYS.FACE_NOT_VISIBLE;
 }
 
 function speakSetupInstruction(result, timestamp) {
@@ -256,7 +362,7 @@ function speakSetupInstruction(result, timestamp) {
         >= SetupGuide.SETUP_CONFIG.instructionSpeechCooldownMs;
 
     if (resultChanged || cooldownFinished) {
-        speak(setupMessageForResult(result));
+        speak(setupMessageKeyForResult(result));
         lastSpokenResult = result;
         lastInstructionSpokenAt = timestamp;
     }
@@ -285,7 +391,7 @@ function processSetupFrame(keypoints, timestamp) {
 
     const distanceResult = result === 'MOVE_BACK_ONE_STEP'
         || result === 'MOVE_CLOSER_ONE_STEP';
-    setupMessage.innerText = distanceResult ? setupMessageForResult(result) : '';
+    setupMessage.innerText = distanceResult ? textFor(setupMessageKeyForResult(result)) : '';
     facePositionLabel.hidden = result === 'POSITION_CORRECT';
     facePositionBand.classList.toggle('is-correct', result === 'POSITION_CORRECT');
 
@@ -300,7 +406,7 @@ function processSetupFrame(keypoints, timestamp) {
 
         if (appState === AppState.POSITIONING
             && timestamp - correctPositionSince >= SetupGuide.SETUP_CONFIG.validPositionMs) {
-            speak(SETUP_MESSAGES.POSITION_CORRECT);
+            speak('position_correct');
             beginCountdown();
         }
     } else {
@@ -334,7 +440,7 @@ async function beginCountdown() {
         onTick: value => {
             if (currentRunId !== setupRunId || appState !== AppState.COUNTDOWN) return;
             document.getElementById('countdown-display').innerText = value;
-            document.getElementById('status').innerText = `البدء خلال: ${value}`;
+            document.getElementById('status').innerText = textFor('countdown_status', { count: value });
         },
         speakValue: value => {
             if (currentRunId !== setupRunId || appState !== AppState.COUNTDOWN) return;
@@ -349,8 +455,8 @@ async function beginCountdown() {
         standingDetector.clearCalibrationSamples();
         setAppState(AppState.POSITIONING);
         correctPositionSince = null;
-        document.getElementById('setup-message').innerText = 'أعد ضبط مكانك داخل الإطار';
-        speak('أعد ضبط مكانك داخل الإطار');
+        document.getElementById('setup-message').innerText = textFor('reposition');
+        speak('reposition');
         return;
     }
 
@@ -361,8 +467,8 @@ function enterPrayerTracking() {
     setupRunId++;
     setAppState(AppState.TRACKING_PRAYER);
     document.getElementById('setup-message').innerText = '';
-    document.getElementById('status').innerText = 'الوضع: وقوف';
-    document.getElementById('sub-status').innerText = 'بدأ تتبع الصلاة';
+    document.getElementById('status').innerText = textFor('standing');
+    document.getElementById('sub-status').innerText = textFor('tracking_started');
 }
 
 function handleStandingTransition(transition) {
@@ -370,7 +476,7 @@ function handleStandingTransition(transition) {
 
     if (transition === 'LEFT_STANDING') {
         isCurrentlyDown = true;
-        subStatus.innerText = 'تم رصد مغادرة وضع الوقوف';
+        subStatus.innerText = textFor('left_standing');
         return;
     }
 
@@ -382,10 +488,10 @@ function handleStandingTransition(transition) {
             rakatCount++;
             standReturnCount = 0;
             document.getElementById('counter-display').innerText = rakatCount;
-            subStatus.innerText = `تم إكمال الركعة السابقة! الركعة ${rakatCount}`;
-            speak(`الركعة ${rakatCount}`);
+            subStatus.innerText = textFor('rakat_complete', { count: rakatCount });
+            speak('rakat_number', { count: rakatCount });
         } else {
-            subStatus.innerText = 'تم رصد العودة من الركوع.. بانتظار السجود';
+            subStatus.innerText = textFor('returned_from_ruku');
         }
     }
 }
@@ -394,8 +500,8 @@ function processPrayerFrame(keypoints, timestamp) {
     const faceY = StandingDetection.extractFaceY(keypoints, video.videoHeight);
     const result = standingDetector.update(faceY, timestamp);
     document.getElementById('status').innerText = result.state === StandingDetection.StandingState.STANDING
-        ? 'الوضع: وقوف'
-        : 'الوضع: ليس وقوفاً';
+        ? textFor('standing')
+        : textFor('not_standing');
 
     if (result.transition) handleStandingTransition(result.transition);
 }
@@ -444,4 +550,9 @@ async function renderResult() {
     requestAnimationFrame(renderResult);
 }
 
-window.addEventListener('DOMContentLoaded', initializeApplication);
+function bootApplication() {
+    initializeSettings();
+    initializeApplication();
+}
+
+window.addEventListener('DOMContentLoaded', bootApplication);

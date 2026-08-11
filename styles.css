@@ -468,6 +468,153 @@ button.btn-primary:active {
     border-color: rgba(239, 68, 68, 0.4);
 }
 
+.settings-btn,
+.settings-back {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    background: rgba(24, 24, 27, 0.86);
+    color: #f4f4f5;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.settings-btn {
+    pointer-events: auto;
+    padding: 8px 13px;
+}
+
+.settings-back {
+    padding: 9px 14px;
+}
+
+.settings-btn:hover,
+.settings-back:hover {
+    border-color: rgba(34, 197, 94, 0.62);
+    background: rgba(22, 101, 52, 0.34);
+}
+
+.settings-view {
+    min-height: 100dvh;
+    padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+    background:
+        radial-gradient(circle at 50% 0%, rgba(34, 197, 94, 0.16), transparent 36%),
+        #09090b;
+}
+
+.settings-card {
+    width: min(100%, 560px);
+    margin: 0 auto;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    background: rgba(24, 24, 27, 0.94);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.settings-header h1 {
+    margin: 0;
+    font-size: clamp(23px, 5vw, 30px);
+}
+
+.setting-row,
+.setting-toggle-row {
+    min-height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 14px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f4f4f5;
+    font-weight: 700;
+}
+
+.setting-row select {
+    width: min(58%, 280px);
+    min-height: 48px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    background: #27272a;
+    color: #ffffff;
+    font: inherit;
+}
+
+.setting-toggle-row {
+    cursor: pointer;
+}
+
+.setting-toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.setting-toggle-copy small {
+    color: #a1a1aa;
+    font-weight: 500;
+}
+
+#quietModeToggle {
+    width: 52px;
+    height: 28px;
+    flex: 0 0 52px;
+    position: relative;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    background: #3f3f46;
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease;
+}
+
+#quietModeToggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    transition: transform 180ms ease;
+}
+
+#quietModeToggle:checked {
+    border-color: #22c55e;
+    background: #16a34a;
+}
+
+#quietModeToggle:checked::after {
+    transform: translateX(24px);
+}
+
+[dir='rtl'] #quietModeToggle::after {
+    left: auto;
+    right: 3px;
+}
+
+[dir='rtl'] #quietModeToggle:checked::after {
+    transform: translateX(-24px);
+}
+
 /* Bottom Status Overlay */
 .bottom-bar {
     width: 100%;
@@ -516,6 +663,26 @@ button.btn-primary:active {
         min-height: 400px;
         padding: 34px 22px;
         border-radius: 24px;
+    }
+
+    .settings-view {
+        padding-inline: 12px;
+    }
+
+    .settings-card {
+        min-height: calc(100dvh - 24px);
+        padding: 20px 16px;
+        border-radius: 20px;
+    }
+
+    .setting-row {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 9px;
+    }
+
+    .setting-row select {
+        width: 100%;
     }
 
     #canvas-wrapper {

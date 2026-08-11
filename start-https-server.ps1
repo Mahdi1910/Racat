@@ -49,13 +49,16 @@ try {
     $response = Invoke-WebRequest -Uri $localUrl -UseBasicParsing
     $localAppResponse = Invoke-WebRequest -Uri ($localUrl + 'app.js') -UseBasicParsing
     $localModelManagerResponse = Invoke-WebRequest -Uri ($localUrl + 'model-manager.js') -UseBasicParsing
+    $localSettingsManagerResponse = Invoke-WebRequest -Uri ($localUrl + 'settings-manager.js') -UseBasicParsing
     if ($response.Content -notmatch 'id="startBtn"' -or
         $response.Content -notmatch 'href="styles.css"' -or
         $response.Content -notmatch 'src="model-manager.js"' -or
         $response.Content -notmatch 'src="setup-guide.js"' -or
+        $response.Content -notmatch 'src="settings-manager.js"' -or
         $response.Content -notmatch 'src="app.js"' -or
         $localAppResponse.Content -notmatch 'initializeApplication' -or
-        $localModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet') {
+        $localModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet' -or
+        $localSettingsManagerResponse.Content -notmatch 'racat-settings-v1') {
         throw 'Safety check failed: the local server is not serving Racat\index.html.'
     }
     Remove-Item $outLog, $errLog -Force -ErrorAction SilentlyContinue
@@ -88,13 +91,16 @@ try {
     $publicResponse = Invoke-WebRequest -Uri $publicUrl -UseBasicParsing
     $publicAppResponse = Invoke-WebRequest -Uri ($publicUrl + '/app.js') -UseBasicParsing
     $publicModelManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/model-manager.js') -UseBasicParsing
+    $publicSettingsManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/settings-manager.js') -UseBasicParsing
     if ($publicResponse.Content -notmatch 'id="startBtn"' -or
         $publicResponse.Content -notmatch 'href="styles.css"' -or
         $publicResponse.Content -notmatch 'src="model-manager.js"' -or
         $publicResponse.Content -notmatch 'src="setup-guide.js"' -or
+        $publicResponse.Content -notmatch 'src="settings-manager.js"' -or
         $publicResponse.Content -notmatch 'src="app.js"' -or
         $publicAppResponse.Content -notmatch 'initializeApplication' -or
-        $publicModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet') {
+        $publicModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet' -or
+        $publicSettingsManagerResponse.Content -notmatch 'racat-settings-v1') {
         throw 'HTTPS verification failed: the public link is not serving Racat\index.html.'
     }
 

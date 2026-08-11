@@ -19,17 +19,17 @@
                     <div class="ai-check-animation" aria-hidden="true">
                         <div class="ai-check-core">AI</div>
                     </div>
-                    <h1>تجهيز الذكاء الاصطناعي</h1>
-                    <p id="model-status-text">جاري التحقق من النموذج...</p>
+                    <h1 data-i18n="preparing_ai">تجهيز الذكاء الاصطناعي</h1>
+                    <p id="model-status-text" data-i18n="checking_model">جاري التحقق من النموذج...</p>
                 </div>
 
                 <div id="model-download-panel" class="model-download-panel" hidden>
                     <div class="model-icon" aria-hidden="true">⬇</div>
-                    <h2>نموذج الذكاء الاصطناعي مطلوب</h2>
-                    <p id="model-download-description">يتم تنزيله مرة واحدة ثم يُحفظ على هذا الجهاز.</p>
+                    <h2 data-i18n="model_required">نموذج الذكاء الاصطناعي مطلوب</h2>
+                    <p id="model-download-description" data-i18n="download_once">يتم تنزيله مرة واحدة ثم يُحفظ على هذا الجهاز.</p>
 
                     <button id="downloadModelBtn" class="btn-primary model-action" onclick="downloadModel()">
-                        تنزيل النموذج
+                        <span data-i18n="download_model">تنزيل النموذج</span>
                     </button>
 
                     <div id="download-progress-panel" class="download-progress-panel" hidden>
@@ -41,14 +41,14 @@
                             <div id="model-progress" class="download-progress-fill"></div>
                         </div>
                         <div class="download-speed-row">
-                            <span>سرعة التنزيل</span>
+                            <span data-i18n="download_speed">سرعة التنزيل</span>
                             <strong id="model-speed">0 KB/s</strong>
                         </div>
                     </div>
 
                     <p id="model-error" class="model-error" hidden></p>
                     <button id="retryModelBtn" class="btn-secondary" onclick="initializeApplication()" hidden>
-                        المحاولة مرة أخرى
+                        <span data-i18n="retry">المحاولة مرة أخرى</span>
                     </button>
                 </div>
             </div>
@@ -61,7 +61,7 @@
 
                 <div id="positioning-overlay" class="positioning-overlay" hidden>
                     <div id="face-position-band" class="face-position-band is-waiting">
-                        <span id="face-position-label" class="face-position-label">يجب أن يكون وجهك هنا</span>
+                        <span id="face-position-label" class="face-position-label" data-i18n="face_here">يجب أن يكون وجهك هنا</span>
                     </div>
                     <div id="countdown-display" class="countdown-display" hidden></div>
                     <div id="setup-message" class="setup-message">انظر إلى الكاميرا</div>
@@ -70,30 +70,67 @@
                 <div class="start-btn-container">
                     <button id="startBtn" class="btn-primary" onclick="startApp()">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                        <span>ابدأ الصلاة الآن</span>
+                        <span data-i18n="start_prayer">ابدأ الصلاة الآن</span>
                     </button>
                 </div>
 
                 <div class="overlay-layer">
                     <div class="top-bar">
                         <div class="counter-badge">
-                            <span class="counter-label-text">الركعة الحالية</span>
+                            <span class="counter-label-text" data-i18n="current_rakat">الركعة الحالية</span>
                             <span id="counter-display" class="counter-number">1</span>
                         </div>
 
                         <div class="top-actions">
+                            <button id="settingsBtn" class="settings-btn" type="button" onclick="openSettings()">
+                                <span aria-hidden="true">⚙</span>
+                                <span data-i18n="settings">الإعدادات</span>
+                            </button>
                             <div class="status-pill">
                                 <span id="status-dot" class="status-dot"></span>
-                                <span id="status">النموذج جاهز</span>
+                                <span id="status" data-i18n="model_ready">النموذج جاهز</span>
                             </div>
-                            <button id="resetBtn" class="reset-btn" onclick="resetApp()">إعادة الضبط</button>
+                            <button id="resetBtn" class="reset-btn" onclick="resetApp()" data-i18n="reset">إعادة الضبط</button>
                         </div>
                     </div>
 
                     <div class="bottom-bar">
-                        <div id="sub-status" class="sub-status-text">اضغط على زر البدء لتشغيل الكاميرا</div>
+                        <div id="sub-status" class="sub-status-text" data-i18n="tap_start">اضغط على زر البدء لتشغيل الكاميرا</div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section id="settings-view" class="app-view settings-view" hidden>
+            <div class="settings-card">
+                <header class="settings-header">
+                    <button id="settingsBackBtn" class="settings-back" type="button" onclick="closeSettings()">
+                        <span aria-hidden="true">←</span>
+                        <span data-i18n="back">رجوع</span>
+                    </button>
+                    <h1 data-i18n="settings_title">إعدادات التطبيق</h1>
+                </header>
+
+                <label class="setting-row" for="languageSelect">
+                    <span data-i18n="language">اللغة</span>
+                    <select id="languageSelect">
+                        <option value="ar" data-i18n="arabic">العربية</option>
+                        <option value="en" data-i18n="english">English</option>
+                    </select>
+                </label>
+
+                <label class="setting-row" for="voiceSelect">
+                    <span data-i18n="voice">الصوت</span>
+                    <select id="voiceSelect"></select>
+                </label>
+
+                <label class="setting-toggle-row" for="quietModeToggle">
+                    <span class="setting-toggle-copy">
+                        <strong data-i18n="quiet_mode">الوضع الهادئ</strong>
+                        <small data-i18n="quiet_description">إيقاف جميع التعليمات الصوتية</small>
+                    </span>
+                    <input id="quietModeToggle" type="checkbox">
+                </label>
             </div>
         </section>
     </div>
@@ -101,6 +138,7 @@
     <script src="model-manager.js"></script>
     <script src="setup-guide.js"></script>
     <script src="standing-detector.js"></script>
+    <script src="settings-manager.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

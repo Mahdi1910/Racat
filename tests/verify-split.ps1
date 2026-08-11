@@ -18,6 +18,7 @@ $jsPath = Join-Path $projectDir 'app.js'
 $detectorPath = Join-Path $projectDir 'standing-detector.js'
 $modelManagerPath = Join-Path $projectDir 'model-manager.js'
 $setupGuidePath = Join-Path $projectDir 'setup-guide.js'
+$settingsManagerPath = Join-Path $projectDir 'settings-manager.js'
 $launcherPath = Join-Path $projectDir 'start-https-server.ps1'
 
 Assert-Condition (Test-Path -LiteralPath $htmlPath) 'index.html is missing.'
@@ -26,6 +27,7 @@ Assert-Condition (Test-Path -LiteralPath $jsPath) 'app.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $detectorPath) 'standing-detector.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $modelManagerPath) 'model-manager.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $setupGuidePath) 'setup-guide.js is missing.'
+Assert-Condition (Test-Path -LiteralPath $settingsManagerPath) 'settings-manager.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $launcherPath) 'start-https-server.ps1 is missing.'
 
 $html = Get-Content -LiteralPath $htmlPath -Raw -Encoding utf8
@@ -34,16 +36,19 @@ $js = Get-Content -LiteralPath $jsPath -Raw -Encoding utf8
 $detector = Get-Content -LiteralPath $detectorPath -Raw -Encoding utf8
 $modelManager = Get-Content -LiteralPath $modelManagerPath -Raw -Encoding utf8
 $setupGuide = Get-Content -LiteralPath $setupGuidePath -Raw -Encoding utf8
+$settingsManager = Get-Content -LiteralPath $settingsManagerPath -Raw -Encoding utf8
 $launcher = Get-Content -LiteralPath $launcherPath -Raw -Encoding utf8
 
 Assert-Condition ($html.Contains('<link rel="stylesheet" href="styles.css">')) 'index.html does not load styles.css.'
 Assert-Condition ($html.Contains('<script src="model-manager.js"></script>')) 'index.html does not load model-manager.js.'
 Assert-Condition ($html.Contains('<script src="setup-guide.js"></script>')) 'index.html does not load setup-guide.js.'
 Assert-Condition ($html.Contains('<script src="standing-detector.js"></script>')) 'index.html does not load standing-detector.js.'
+Assert-Condition ($html.Contains('<script src="settings-manager.js"></script>')) 'index.html does not load settings-manager.js.'
 Assert-Condition ($html.Contains('<script src="app.js"></script>')) 'index.html does not load app.js.'
 Assert-Condition ($html.IndexOf('<script src="model-manager.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'model-manager.js must load before app.js.'
 Assert-Condition ($html.IndexOf('<script src="setup-guide.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'setup-guide.js must load before app.js.'
 Assert-Condition ($html.IndexOf('<script src="standing-detector.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'standing-detector.js must load before app.js.'
+Assert-Condition ($html.IndexOf('<script src="settings-manager.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'settings-manager.js must load before app.js.'
 Assert-Condition ($html -notmatch '<style(?:\s[^>]*)?>') 'index.html still contains an embedded style block.'
 Assert-Condition ($html -notmatch '<script>\s*let detector;') 'index.html still contains the embedded application script.'
 
@@ -62,6 +67,12 @@ $requiredMarkup = @(
     'id="face-position-band"',
     'id="face-position-label"',
     'id="setup-message"',
+    'id="settingsBtn"',
+    'id="settings-view"',
+    'id="settingsBackBtn"',
+    'id="languageSelect"',
+    'id="voiceSelect"',
+    'id="quietModeToggle"',
     'id="startBtn"',
     'onclick="startApp()"',
     'id="counter-display"',
@@ -116,6 +127,7 @@ $requiredBehavior = @(
     "DOWNLOADING_MODEL: 'DOWNLOADING_MODEL'",
     "VERIFYING_MODEL: 'VERIFYING_MODEL'",
     "MAIN_READY: 'MAIN_READY'",
+    "SETTINGS: 'SETTINGS'",
     "REQUESTING_CAMERA: 'REQUESTING_CAMERA'",
     "POSITIONING: 'POSITIONING'",
     "COUNTDOWN: 'COUNTDOWN'",
@@ -128,18 +140,23 @@ $requiredBehavior = @(
     'async function initializeApplication()',
     'async function downloadModel()',
     'function setAppState(nextState)',
+    'function openSettings()',
+    'function closeSettings()',
+    'function populateVoiceOptions()',
+    'function applyLanguage()',
     'function resetApp()',
     'async function setupCamera()',
-    'function speak(text)',
+    'function speak(messageKey, replacements = {})',
+    'SettingsManager.createSpeechRequest(',
     'function processPose(keypoints)',
     'async function renderResult()',
     "facingMode: 'user'",
     'ModelManager.createModelManager({',
     'SetupGuide.classifySetup(',
-    "result === 'FACE_NOT_VISIBLE'",
-    "result === 'MOVE_BACK_ONE_STEP'",
-    "result === 'MOVE_CLOSER_ONE_STEP'",
-    "result === 'FACE_OUTSIDE_TARGET'",
+    "FACE_NOT_VISIBLE: 'face_not_visible'",
+    "FACE_OUTSIDE_TARGET: 'face_here'",
+    "MOVE_BACK_ONE_STEP: 'move_back'",
+    "MOVE_CLOSER_ONE_STEP: 'move_closer'",
     "result === 'POSITION_CORRECT'",
     'StandingDetection.createStandingDetector()',
     'StandingDetection.runCountdown({',
@@ -147,7 +164,7 @@ $requiredBehavior = @(
     "transition === 'LEFT_STANDING'",
     "transition === 'RETURNED_TO_STANDING'",
     'if (standReturnCount === 2)',
-    "utterance.lang = 'ar-SA';",
+    'utterance.lang = request.language;',
     'requestAnimationFrame(renderResult);'
 )
 foreach ($token in $requiredBehavior) {
@@ -191,6 +208,29 @@ foreach ($token in $requiredSetupGuideBehavior) {
     Assert-Condition ($setupGuide.Contains($token)) "setup-guide.js lost required behavior: $token"
 }
 
+$requiredSettingsBehavior = @(
+    'racat-settings-v1',
+    'function loadSettings(',
+    'function saveSettings(',
+    'function translate(',
+    'function sortVoices(',
+    'function findVoice(',
+    'function createSpeechRequest('
+)
+foreach ($token in $requiredSettingsBehavior) {
+    Assert-Condition ($settingsManager.Contains($token)) "settings-manager.js lost required behavior: $token"
+}
+
+$forbiddenSettingsMarkup = @(
+    'id="vibration',
+    'id="volumeTest',
+    'id="recalibrate',
+    'id="wakeLock'
+)
+foreach ($token in $forbiddenSettingsMarkup) {
+    Assert-Condition (-not $html.Contains($token)) "index.html contains an excluded settings control: $token"
+}
+
 $removedGuideMarkup = @(
     'id="face-target"',
     'id="lighting-sample"'
@@ -230,15 +270,21 @@ $requiredLauncherBehavior = @(
     '$publicAppResponse = Invoke-WebRequest',
     '$localModelManagerResponse = Invoke-WebRequest',
     '$publicModelManagerResponse = Invoke-WebRequest',
+    '$localSettingsManagerResponse = Invoke-WebRequest',
+    '$publicSettingsManagerResponse = Invoke-WebRequest',
     '$localModelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
     '$publicModelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
     '$response.Content -notmatch ''href="styles.css"''',
     '$response.Content -notmatch ''src="model-manager.js"''',
     '$response.Content -notmatch ''src="setup-guide.js"''',
+    '$response.Content -notmatch ''src="settings-manager.js"''',
     '$response.Content -notmatch ''src="app.js"''',
     '$publicResponse.Content -notmatch ''href="styles.css"''',
     '$publicResponse.Content -notmatch ''src="model-manager.js"''',
     '$publicResponse.Content -notmatch ''src="setup-guide.js"''',
+    '$publicResponse.Content -notmatch ''src="settings-manager.js"''',
+    '$localSettingsManagerResponse.Content -notmatch ''racat-settings-v1''',
+    '$publicSettingsManagerResponse.Content -notmatch ''racat-settings-v1''',
     '$publicResponse.Content -notmatch ''src="app.js"'''
 )
 foreach ($token in $requiredLauncherBehavior) {
