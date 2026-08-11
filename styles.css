@@ -3,6 +3,10 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background-color: #09090b;
@@ -26,6 +30,199 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+.app-view {
+    width: 100%;
+    height: 100%;
+}
+
+.main-view {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.model-view {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    background:
+        radial-gradient(circle at 50% 15%, rgba(34, 197, 94, 0.14), transparent 38%),
+        linear-gradient(160deg, #09090b 0%, #111827 100%);
+}
+
+.model-card {
+    position: relative;
+    width: min(440px, 100%);
+    min-height: 430px;
+    overflow: hidden;
+    padding: 42px 30px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 28px;
+    background: rgba(24, 24, 27, 0.92);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+    text-align: center;
+}
+
+.model-card-shine {
+    position: absolute;
+    inset: -40% auto -40% -60%;
+    width: 42%;
+    transform: rotate(18deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    animation: card-shine 3.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.model-checking,
+.model-download-panel {
+    position: relative;
+    z-index: 1;
+}
+
+.model-checking h1,
+.model-download-panel h2 {
+    margin: 24px 0 10px;
+    font-size: 26px;
+}
+
+.model-checking p,
+.model-download-panel p {
+    color: #a1a1aa;
+    line-height: 1.7;
+}
+
+.ai-check-animation {
+    position: relative;
+    width: 112px;
+    height: 112px;
+    margin: 0 auto;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, #22c55e, transparent 68%);
+    animation: ai-spin 1.4s linear infinite;
+}
+
+.ai-check-animation::before {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: inherit;
+    background: #18181b;
+}
+
+.ai-check-core {
+    position: relative;
+    z-index: 1;
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    border-radius: 22px;
+    background: rgba(34, 197, 94, 0.14);
+    color: #4ade80;
+    font-size: 22px;
+    font-weight: 900;
+    box-shadow: 0 0 32px rgba(34, 197, 94, 0.22);
+}
+
+.model-icon {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto;
+    display: grid;
+    place-items: center;
+    border-radius: 24px;
+    background: rgba(34, 197, 94, 0.14);
+    color: #4ade80;
+    font-size: 36px;
+}
+
+.model-action {
+    width: 100%;
+    justify-content: center;
+    margin-top: 22px;
+}
+
+.btn-secondary {
+    width: 100%;
+    margin-top: 14px;
+    padding: 13px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.download-progress-panel {
+    margin-top: 26px;
+}
+
+.download-progress-heading,
+.download-speed-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 9px;
+    color: #d4d4d8;
+    font-size: 14px;
+}
+
+.download-progress-heading span:first-child {
+    color: #4ade80;
+    font-size: 21px;
+    font-weight: 800;
+}
+
+.download-progress-track {
+    height: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.download-progress-fill {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #16a34a, #4ade80);
+    box-shadow: 0 0 18px rgba(34, 197, 94, 0.5);
+    transition: width 0.25s ease;
+}
+
+.download-speed-row {
+    margin-top: 10px;
+    color: #a1a1aa;
+}
+
+.download-speed-row strong {
+    color: #f4f4f5;
+}
+
+.model-error {
+    margin: 20px 0 0;
+    padding: 12px;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 14px;
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5 !important;
+}
+
+@keyframes ai-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes card-shine {
+    0%, 35% { transform: translateX(0) rotate(18deg); opacity: 0; }
+    50% { opacity: 1; }
+    75%, 100% { transform: translateX(520px) rotate(18deg); opacity: 0; }
 }
 
 /* 9:16 Aspect Ratio Camera Viewport */
@@ -54,6 +251,94 @@ video, canvas {
     transform: scaleX(-1);
 }
 
+.lighting-sample {
+    width: 32px;
+    height: 32px;
+}
+
+.positioning-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.12), transparent 42%);
+}
+
+.face-target {
+    position: absolute;
+    top: 8%;
+    left: 50%;
+    width: 42%;
+    height: 22%;
+    transform: translateX(-50%);
+    border: 3px solid #f59e0b;
+    border-radius: 46% 46% 42% 42%;
+    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.16), 0 0 28px rgba(245, 158, 11, 0.38);
+    animation: face-pulse 1.6s ease-in-out infinite;
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+}
+
+.face-target.is-correct {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.12), 0 0 32px rgba(34, 197, 94, 0.55);
+    animation: none;
+}
+
+.face-target-check {
+    position: absolute;
+    right: -12px;
+    bottom: -12px;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #22c55e;
+    color: white;
+    font-weight: 900;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.face-target.is-correct .face-target-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.setup-message {
+    position: absolute;
+    top: 34%;
+    left: 50%;
+    width: min(88%, 420px);
+    transform: translateX(-50%);
+    padding: 12px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(9, 9, 11, 0.82);
+    color: #ffffff;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    backdrop-filter: blur(12px);
+}
+
+.countdown-display {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #4ade80;
+    font-size: 92px;
+    font-weight: 900;
+    text-shadow: 0 0 30px rgba(34, 197, 94, 0.55);
+}
+
+@keyframes face-pulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.035); }
+}
+
 /* UI Overlay floating on top of video stream */
 .overlay-layer {
     position: absolute;
@@ -73,6 +358,13 @@ video, canvas {
     align-items: flex-start;
     width: 100%;
     gap: 12px;
+}
+
+.top-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
 }
 
 /* Counter Badge */
@@ -218,10 +510,28 @@ button.btn-primary:active {
     margin-top: 3px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 /* Auto-Detect Phone / Mobile Screens -> Full Application is just Camera + Overlays */
 @media (max-width: 768px), (pointer: coarse) {
     body {
         background-color: #000000;
+    }
+
+    .model-view {
+        padding: 16px;
+    }
+
+    .model-card {
+        min-height: 400px;
+        padding: 34px 22px;
+        border-radius: 24px;
     }
 
     #canvas-wrapper {

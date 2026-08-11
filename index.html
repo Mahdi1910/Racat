@@ -11,48 +11,96 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 </head>
 <body>
-
     <div id="app-container">
-        <!-- 9:16 Aspect Ratio Camera Container -->
-        <div id="canvas-wrapper">
-            <video id="video" playsinline muted></video>
-            <canvas id="output"></canvas>
-
-            <!-- Floating Start Button on the Left Side of Video -->
-            <div class="start-btn-container">
-                <button id="startBtn" class="btn-primary" onclick="startApp()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                    <span>ابدأ الصلاة الآن</span>
-                </button>
-            </div>
-
-            <!-- UI Overlay Floating on Top of Camera -->
-            <div class="overlay-layer">
-                <!-- Top Row: Counter & Status -->
-                <div class="top-bar">
-                    <div class="counter-badge">
-                        <span class="counter-label-text">الركعة الحالية</span>
-                        <span id="counter-display" class="counter-number">1</span>
+        <section id="model-view" class="app-view model-view" aria-live="polite">
+            <div class="model-card">
+                <div class="model-card-shine" aria-hidden="true"></div>
+                <div id="model-checking" class="model-checking">
+                    <div class="ai-check-animation" aria-hidden="true">
+                        <div class="ai-check-core">AI</div>
                     </div>
+                    <h1>تجهيز الذكاء الاصطناعي</h1>
+                    <p id="model-status-text">جاري التحقق من النموذج...</p>
+                </div>
 
-                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-                        <div class="status-pill">
-                            <span id="status-dot" class="status-dot"></span>
-                            <span id="status">بانتظار التشغيل...</span>
+                <div id="model-download-panel" class="model-download-panel" hidden>
+                    <div class="model-icon" aria-hidden="true">⬇</div>
+                    <h2>نموذج الذكاء الاصطناعي مطلوب</h2>
+                    <p id="model-download-description">يتم تنزيله مرة واحدة ثم يُحفظ على هذا الجهاز.</p>
+
+                    <button id="downloadModelBtn" class="btn-primary model-action" onclick="downloadModel()">
+                        تنزيل النموذج
+                    </button>
+
+                    <div id="download-progress-panel" class="download-progress-panel" hidden>
+                        <div class="download-progress-heading">
+                            <span id="model-percentage">0%</span>
+                            <span id="model-downloaded">0 MB</span>
                         </div>
-                        <button id="resetBtn" class="reset-btn" onclick="resetApp()">إعادة الضبط</button>
+                        <div class="download-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div id="model-progress" class="download-progress-fill"></div>
+                        </div>
+                        <div class="download-speed-row">
+                            <span>سرعة التنزيل</span>
+                            <strong id="model-speed">0 KB/s</strong>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Bottom Row: Status Guidance -->
-                <div class="bottom-bar">
-                    <div id="sub-status" class="sub-status-text">اضغط على زر البدء لتشغيل الكاميرا والعد الآلي</div>
-                    <div class="guide-text">تأكد من إظهار الجسم بالكامل في الكاميرا (9:16)</div>
+                    <p id="model-error" class="model-error" hidden></p>
+                    <button id="retryModelBtn" class="btn-secondary" onclick="initializeApplication()" hidden>
+                        المحاولة مرة أخرى
+                    </button>
                 </div>
             </div>
-        </div>
+        </section>
+
+        <section id="main-view" class="app-view main-view" hidden>
+            <div id="canvas-wrapper">
+                <video id="video" playsinline muted></video>
+                <canvas id="output"></canvas>
+                <canvas id="lighting-sample" class="lighting-sample" width="32" height="32" hidden></canvas>
+
+                <div id="positioning-overlay" class="positioning-overlay" hidden>
+                    <div id="face-target" class="face-target" aria-hidden="true">
+                        <span class="face-target-check">✓</span>
+                    </div>
+                    <div id="countdown-display" class="countdown-display" hidden></div>
+                    <div id="setup-message" class="setup-message">انظر إلى الكاميرا</div>
+                </div>
+
+                <div class="start-btn-container">
+                    <button id="startBtn" class="btn-primary" onclick="startApp()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        <span>ابدأ الصلاة الآن</span>
+                    </button>
+                </div>
+
+                <div class="overlay-layer">
+                    <div class="top-bar">
+                        <div class="counter-badge">
+                            <span class="counter-label-text">الركعة الحالية</span>
+                            <span id="counter-display" class="counter-number">1</span>
+                        </div>
+
+                        <div class="top-actions">
+                            <div class="status-pill">
+                                <span id="status-dot" class="status-dot"></span>
+                                <span id="status">النموذج جاهز</span>
+                            </div>
+                            <button id="resetBtn" class="reset-btn" onclick="resetApp()">إعادة الضبط</button>
+                        </div>
+                    </div>
+
+                    <div class="bottom-bar">
+                        <div id="sub-status" class="sub-status-text">اضغط على زر البدء لتشغيل الكاميرا</div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </div>
 
+    <script src="model-manager.js"></script>
+    <script src="setup-guide.js"></script>
     <script src="standing-detector.js"></script>
     <script src="app.js"></script>
 </body>
