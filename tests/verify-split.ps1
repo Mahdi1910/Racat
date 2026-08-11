@@ -15,20 +15,25 @@ $projectDir = Split-Path -Parent $PSScriptRoot
 $htmlPath = Join-Path $projectDir 'index.html'
 $cssPath = Join-Path $projectDir 'styles.css'
 $jsPath = Join-Path $projectDir 'app.js'
+$detectorPath = Join-Path $projectDir 'standing-detector.js'
 $launcherPath = Join-Path $projectDir 'start-https-server.ps1'
 
 Assert-Condition (Test-Path -LiteralPath $htmlPath) 'index.html is missing.'
 Assert-Condition (Test-Path -LiteralPath $cssPath) 'styles.css is missing.'
 Assert-Condition (Test-Path -LiteralPath $jsPath) 'app.js is missing.'
+Assert-Condition (Test-Path -LiteralPath $detectorPath) 'standing-detector.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $launcherPath) 'start-https-server.ps1 is missing.'
 
 $html = Get-Content -LiteralPath $htmlPath -Raw -Encoding utf8
 $css = Get-Content -LiteralPath $cssPath -Raw -Encoding utf8
 $js = Get-Content -LiteralPath $jsPath -Raw -Encoding utf8
+$detector = Get-Content -LiteralPath $detectorPath -Raw -Encoding utf8
 $launcher = Get-Content -LiteralPath $launcherPath -Raw -Encoding utf8
 
 Assert-Condition ($html.Contains('<link rel="stylesheet" href="styles.css">')) 'index.html does not load styles.css.'
+Assert-Condition ($html.Contains('<script src="standing-detector.js"></script>')) 'index.html does not load standing-detector.js.'
 Assert-Condition ($html.Contains('<script src="app.js"></script>')) 'index.html does not load app.js.'
+Assert-Condition ($html.IndexOf('<script src="standing-detector.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'standing-detector.js must load before app.js.'
 Assert-Condition ($html -notmatch '<style(?:\s[^>]*)?>') 'index.html still contains an embedded style block.'
 Assert-Condition ($html -notmatch '<script>\s*let detector;') 'index.html still contains the embedded application script.'
 
@@ -88,14 +93,36 @@ $requiredBehavior = @(
     "facingMode: 'user'",
     'poseDetection.SupportedModels.MoveNet',
     'poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING',
-    'if (noseY_ratio < 0.35)',
-    'else if (noseY_ratio > 0.60)',
+    'StandingDetection.createStandingDetector()',
+    'StandingDetection.runCountdown({',
+    'StandingDetection.extractFaceY(',
+    "trackingPhase = 'COUNTDOWN'",
+    "trackingPhase = 'CALIBRATING'",
+    "trackingPhase = 'TRACKING'",
+    "transition === 'LEFT_STANDING'",
+    "transition === 'RETURNED_TO_STANDING'",
     'if (standReturnCount === 2)',
     "utterance.lang = 'ar-SA';",
     'requestAnimationFrame(renderResult);'
 )
 foreach ($token in $requiredBehavior) {
     Assert-Condition ($js.Contains($token)) "app.js lost behavior-critical code: $token"
+}
+
+$requiredDetectorBehavior = @(
+    "nose",
+    "left_eye",
+    "right_eye",
+    "left_ear",
+    "right_ear",
+    "UNCALIBRATED",
+    "STANDING",
+    "NOT_STANDING",
+    "missingFaceConfirmMs: 400",
+    "returnToStandingConfirmMs: 600"
+)
+foreach ($token in $requiredDetectorBehavior) {
+    Assert-Condition ($detector.Contains($token)) "standing-detector.js lost required behavior: $token"
 }
 
 $requiredLauncherBehavior = @(

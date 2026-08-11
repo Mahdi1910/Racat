@@ -7,6 +7,19 @@ let rakatCount = 1;
 let standReturnCount = 0;
 let isCurrentlyDown = false;
 let isRunning = false;
+let standingDetector = StandingDetection.createStandingDetector();
+let trackingPhase = 'IDLE';
+let calibrationStartedAt = null;
+let setupRunId = 0;
+
+const COUNTDOWN_WORDS = {
+    5: 'خمسة',
+    4: 'أربعة',
+    3: 'ثلاثة',
+    2: 'اثنان',
+    1: 'واحد',
+    0: 'صفر'
+};
 
 async function startApp() {
     const btn = document.getElementById('startBtn');
@@ -24,14 +37,13 @@ async function startApp() {
         statusText.innerText = "تحميل الذكاء الاصطناعي...";
         await loadModel();
 
-        statusText.innerText = "جاهز! ابدأ الصلاة";
+        statusText.innerText = "الكاميرا جاهزة";
         statusDot.classList.add('active');
-        subStatus.innerText = "سيتم العد آلياً بعد العودة من السجود";
         resetBtn.style.display = 'block';
 
         isRunning = true;
         renderResult();
-        speak("بدأت الصلاة، الركعة الأولى");
+        await beginStandingSetup();
 
     } catch (error) {
         alert("خطأ أثناء البدء: " + error.message);
@@ -45,9 +57,12 @@ function resetApp() {
     rakatCount = 1;
     standReturnCount = 0;
     isCurrentlyDown = false;
+    standingDetector.reset();
     document.getElementById('counter-display').innerText = rakatCount;
-    document.getElementById('sub-status').innerText = "تم إعادة الضبط، جاهز للركعة الأولى";
-    speak("تم إعادة الضبط، الركعة الأولى");
+
+    if (isRunning) {
+        beginStandingSetup();
+    }
 }
 
 async function setupCamera() {
@@ -85,40 +100,119 @@ function speak(text) {
     }
 }
 
-function processPose(keypoints) {
-    const nose = keypoints.find(k => k.name === 'nose');
-    if (!nose || nose.score < 0.3) return;
+async function beginStandingSetup() {
+    const currentRunId = ++setupRunId;
+    trackingPhase = 'COUNTDOWN';
+    calibrationStartedAt = null;
+    standingDetector.reset();
 
-    const noseY_ratio = nose.y / video.videoHeight;
-    let currentPose = "غير محدد";
+    await StandingDetection.runCountdown({
+        from: StandingDetection.DEFAULT_CONFIG.countdownFrom,
+        onTick: value => {
+            if (currentRunId !== setupRunId) return;
+            document.getElementById('status').innerText = "البدء خلال: " + value;
+            document.getElementById('sub-status').innerText = "قف في مكان الصلاة وانظر إلى الكاميرا";
+        },
+        speakValue: value => {
+            if (currentRunId !== setupRunId) return;
+            speak(COUNTDOWN_WORDS[value]);
+        }
+    });
 
-    if (noseY_ratio < 0.35) {
-        currentPose = "وقوف";
-    } else if (noseY_ratio > 0.60) {
-        currentPose = "نزول";
+    if (currentRunId !== setupRunId) return;
+
+    trackingPhase = 'CALIBRATING';
+    document.getElementById('status').innerText = "معايرة وضع الوقوف...";
+    document.getElementById('sub-status').innerText = "ابق واقفاً وثبت وجهك باتجاه الكاميرا";
+}
+
+function processCalibration(faceY, timestamp) {
+    const statusText = document.getElementById('status');
+    const subStatus = document.getElementById('sub-status');
+
+    if (faceY === null) {
+        calibrationStartedAt = null;
+        standingDetector.clearCalibrationSamples();
+        statusText.innerText = "بانتظار رؤية الوجه...";
+        subStatus.innerText = "ابق واقفاً وانظر إلى الكاميرا";
+        return;
     }
 
-    if (currentPose === "نزول") {
+    if (calibrationStartedAt === null) {
+        calibrationStartedAt = timestamp;
+        standingDetector.clearCalibrationSamples();
+    }
+
+    standingDetector.addCalibrationSample(faceY);
+    statusText.innerText = "معايرة وضع الوقوف...";
+
+    if (timestamp - calibrationStartedAt < StandingDetection.DEFAULT_CONFIG.calibrationDurationMs) {
+        return;
+    }
+
+    const calibration = standingDetector.finishCalibration();
+    if (!calibration.ok) {
+        calibrationStartedAt = null;
+        standingDetector.clearCalibrationSamples();
+        statusText.innerText = "حافظ على ثبات الوجه...";
+        subStatus.innerText = "سنحاول معايرة الوقوف مرة أخرى";
+        return;
+    }
+
+    trackingPhase = 'TRACKING';
+    statusText.innerText = "الوضع: وقوف";
+    subStatus.innerText = "تم حفظ مكان الوقوف، ابدأ الصلاة";
+    speak("تم تحديد وضع الوقوف، ابدأ الصلاة");
+}
+
+function handleStandingTransition(transition) {
+    const subStatus = document.getElementById('sub-status');
+
+    if (transition === 'LEFT_STANDING') {
         isCurrentlyDown = true;
+        subStatus.innerText = "تم رصد مغادرة وضع الوقوف";
+        return;
     }
 
-    if (currentPose === "وقوف" && isCurrentlyDown) {
+    if (transition === 'RETURNED_TO_STANDING' && isCurrentlyDown) {
         standReturnCount++;
         isCurrentlyDown = false;
 
         if (standReturnCount === 2) {
             rakatCount++;
             standReturnCount = 0;
-
             document.getElementById('counter-display').innerText = rakatCount;
-            document.getElementById('sub-status').innerText = "تم إكمال الركعة السابقة! الركعة " + rakatCount;
+            subStatus.innerText = "تم إكمال الركعة السابقة! الركعة " + rakatCount;
             speak("الركعة " + rakatCount);
         } else {
-            document.getElementById('sub-status').innerText = "تم رصد الركوع.. بانتظار السجود";
+            subStatus.innerText = "تم رصد العودة من الركوع.. بانتظار السجود";
         }
     }
+}
 
-    document.getElementById('status').innerText = "الوضع: " + currentPose;
+function processFaceObservation(faceY, timestamp) {
+    if (trackingPhase === 'COUNTDOWN') return;
+
+    if (trackingPhase === 'CALIBRATING') {
+        processCalibration(faceY, timestamp);
+        return;
+    }
+
+    if (trackingPhase !== 'TRACKING') return;
+
+    const result = standingDetector.update(faceY, timestamp);
+    document.getElementById('status').innerText = result.state === StandingDetection.StandingState.STANDING
+        ? "الوضع: وقوف"
+        : "الوضع: ليس وقوفاً";
+
+    if (result.transition) {
+        handleStandingTransition(result.transition);
+    }
+}
+
+function processPose(keypoints) {
+    const faceY = StandingDetection.extractFaceY(keypoints, video.videoHeight);
+    processFaceObservation(faceY, performance.now());
 }
 
 async function renderResult() {
@@ -132,9 +226,9 @@ async function renderResult() {
     const poses = await detector.estimatePoses(video);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (poses.length > 0) {
-        const keypoints = poses[0].keypoints;
-        processPose(keypoints);
+            if (poses.length > 0) {
+                const keypoints = poses[0].keypoints;
+                processPose(keypoints);
 
         for (let point of keypoints) {
             if (point.score > 0.3) {
@@ -142,8 +236,10 @@ async function renderResult() {
                 ctx.arc(point.x, point.y, 8, 0, 2 * Math.PI);
                 ctx.fillStyle = (point.name === 'nose') ? "#22c55e" : "#3b82f6";
                 ctx.fill();
+                    }
+                }
+            } else {
+                processFaceObservation(null, performance.now());
             }
-        }
-    }
     requestAnimationFrame(renderResult);
 }
