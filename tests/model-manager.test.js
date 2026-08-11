@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const modulePath = path.join(__dirname, '..', 'model-manager.js');
+const modulePath = path.join(__dirname, '..', 'js', 'model-manager.js');
 const moduleExists = fs.existsSync(modulePath);
 const api = moduleExists ? require(modulePath) : {};
 

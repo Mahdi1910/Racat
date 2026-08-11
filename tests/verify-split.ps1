@@ -13,12 +13,12 @@ function Assert-Condition {
 
 $projectDir = Split-Path -Parent $PSScriptRoot
 $htmlPath = Join-Path $projectDir 'index.html'
-$cssPath = Join-Path $projectDir 'styles.css'
-$jsPath = Join-Path $projectDir 'app.js'
-$detectorPath = Join-Path $projectDir 'standing-detector.js'
-$modelManagerPath = Join-Path $projectDir 'model-manager.js'
-$setupGuidePath = Join-Path $projectDir 'setup-guide.js'
-$settingsManagerPath = Join-Path $projectDir 'settings-manager.js'
+$cssPath = Join-Path $projectDir 'css\styles.css'
+$jsPath = Join-Path $projectDir 'js\app.js'
+$detectorPath = Join-Path $projectDir 'js\standing-detector.js'
+$modelManagerPath = Join-Path $projectDir 'js\model-manager.js'
+$setupGuidePath = Join-Path $projectDir 'js\setup-guide.js'
+$settingsManagerPath = Join-Path $projectDir 'js\settings-manager.js'
 $launcherPath = Join-Path $projectDir 'start-https-server.ps1'
 
 Assert-Condition (Test-Path -LiteralPath $htmlPath) 'index.html is missing.'
@@ -39,16 +39,16 @@ $setupGuide = Get-Content -LiteralPath $setupGuidePath -Raw -Encoding utf8
 $settingsManager = Get-Content -LiteralPath $settingsManagerPath -Raw -Encoding utf8
 $launcher = Get-Content -LiteralPath $launcherPath -Raw -Encoding utf8
 
-Assert-Condition ($html.Contains('<link rel="stylesheet" href="styles.css">')) 'index.html does not load styles.css.'
-Assert-Condition ($html.Contains('<script src="model-manager.js"></script>')) 'index.html does not load model-manager.js.'
-Assert-Condition ($html.Contains('<script src="setup-guide.js"></script>')) 'index.html does not load setup-guide.js.'
-Assert-Condition ($html.Contains('<script src="standing-detector.js"></script>')) 'index.html does not load standing-detector.js.'
-Assert-Condition ($html.Contains('<script src="settings-manager.js"></script>')) 'index.html does not load settings-manager.js.'
-Assert-Condition ($html.Contains('<script src="app.js"></script>')) 'index.html does not load app.js.'
-Assert-Condition ($html.IndexOf('<script src="model-manager.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'model-manager.js must load before app.js.'
-Assert-Condition ($html.IndexOf('<script src="setup-guide.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'setup-guide.js must load before app.js.'
-Assert-Condition ($html.IndexOf('<script src="standing-detector.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'standing-detector.js must load before app.js.'
-Assert-Condition ($html.IndexOf('<script src="settings-manager.js"></script>') -lt $html.IndexOf('<script src="app.js"></script>')) 'settings-manager.js must load before app.js.'
+Assert-Condition ($html.Contains('<link rel="stylesheet" href="css/styles.css">')) 'index.html does not load css/styles.css.'
+Assert-Condition ($html.Contains('<script src="js/model-manager.js"></script>')) 'index.html does not load js/model-manager.js.'
+Assert-Condition ($html.Contains('<script src="js/setup-guide.js"></script>')) 'index.html does not load js/setup-guide.js.'
+Assert-Condition ($html.Contains('<script src="js/standing-detector.js"></script>')) 'index.html does not load js/standing-detector.js.'
+Assert-Condition ($html.Contains('<script src="js/settings-manager.js"></script>')) 'index.html does not load js/settings-manager.js.'
+Assert-Condition ($html.Contains('<script src="js/app.js"></script>')) 'index.html does not load js/app.js.'
+Assert-Condition ($html.IndexOf('<script src="js/model-manager.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'model-manager.js must load before app.js.'
+Assert-Condition ($html.IndexOf('<script src="js/setup-guide.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'setup-guide.js must load before app.js.'
+Assert-Condition ($html.IndexOf('<script src="js/standing-detector.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'standing-detector.js must load before app.js.'
+Assert-Condition ($html.IndexOf('<script src="js/settings-manager.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'settings-manager.js must load before app.js.'
 Assert-Condition ($html -notmatch '<style(?:\s[^>]*)?>') 'index.html still contains an embedded style block.'
 Assert-Condition ($html -notmatch '<script>\s*let detector;') 'index.html still contains the embedded application script.'
 
@@ -274,18 +274,18 @@ $requiredLauncherBehavior = @(
     '$publicSettingsManagerResponse = Invoke-WebRequest',
     '$localModelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
     '$publicModelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
-    '$response.Content -notmatch ''href="styles.css"''',
-    '$response.Content -notmatch ''src="model-manager.js"''',
-    '$response.Content -notmatch ''src="setup-guide.js"''',
-    '$response.Content -notmatch ''src="settings-manager.js"''',
-    '$response.Content -notmatch ''src="app.js"''',
-    '$publicResponse.Content -notmatch ''href="styles.css"''',
-    '$publicResponse.Content -notmatch ''src="model-manager.js"''',
-    '$publicResponse.Content -notmatch ''src="setup-guide.js"''',
-    '$publicResponse.Content -notmatch ''src="settings-manager.js"''',
+    '$response.Content -notmatch ''href="css/styles.css"''',
+    '$response.Content -notmatch ''src="js/model-manager.js"''',
+    '$response.Content -notmatch ''src="js/setup-guide.js"''',
+    '$response.Content -notmatch ''src="js/settings-manager.js"''',
+    '$response.Content -notmatch ''src="js/app.js"''',
+    '$publicResponse.Content -notmatch ''href="css/styles.css"''',
+    '$publicResponse.Content -notmatch ''src="js/model-manager.js"''',
+    '$publicResponse.Content -notmatch ''src="js/setup-guide.js"''',
+    '$publicResponse.Content -notmatch ''src="js/settings-manager.js"''',
     '$localSettingsManagerResponse.Content -notmatch ''racat-settings-v1''',
     '$publicSettingsManagerResponse.Content -notmatch ''racat-settings-v1''',
-    '$publicResponse.Content -notmatch ''src="app.js"'''
+    '$publicResponse.Content -notmatch ''src="js/app.js"'''
 )
 foreach ($token in $requiredLauncherBehavior) {
     Assert-Condition ($launcher.Contains($token)) "HTTPS launcher does not verify the split assets: $token"

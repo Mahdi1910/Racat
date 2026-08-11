@@ -47,15 +47,15 @@ try {
 
     $localUrl = "http://127.0.0.1:$port/"
     $response = Invoke-WebRequest -Uri $localUrl -UseBasicParsing
-    $localAppResponse = Invoke-WebRequest -Uri ($localUrl + 'app.js') -UseBasicParsing
-    $localModelManagerResponse = Invoke-WebRequest -Uri ($localUrl + 'model-manager.js') -UseBasicParsing
-    $localSettingsManagerResponse = Invoke-WebRequest -Uri ($localUrl + 'settings-manager.js') -UseBasicParsing
+    $localAppResponse = Invoke-WebRequest -Uri ($localUrl + 'js/app.js') -UseBasicParsing
+    $localModelManagerResponse = Invoke-WebRequest -Uri ($localUrl + 'js/model-manager.js') -UseBasicParsing
+    $localSettingsManagerResponse = Invoke-WebRequest -Uri ($localUrl + 'js/settings-manager.js') -UseBasicParsing
     if ($response.Content -notmatch 'id="startBtn"' -or
-        $response.Content -notmatch 'href="styles.css"' -or
-        $response.Content -notmatch 'src="model-manager.js"' -or
-        $response.Content -notmatch 'src="setup-guide.js"' -or
-        $response.Content -notmatch 'src="settings-manager.js"' -or
-        $response.Content -notmatch 'src="app.js"' -or
+        $response.Content -notmatch 'href="css/styles.css"' -or
+        $response.Content -notmatch 'src="js/model-manager.js"' -or
+        $response.Content -notmatch 'src="js/setup-guide.js"' -or
+        $response.Content -notmatch 'src="js/settings-manager.js"' -or
+        $response.Content -notmatch 'src="js/app.js"' -or
         $localAppResponse.Content -notmatch 'initializeApplication' -or
         $localModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet' -or
         $localSettingsManagerResponse.Content -notmatch 'racat-settings-v1') {
@@ -89,15 +89,15 @@ try {
 
     Start-Sleep -Seconds 1
     $publicResponse = Invoke-WebRequest -Uri $publicUrl -UseBasicParsing
-    $publicAppResponse = Invoke-WebRequest -Uri ($publicUrl + '/app.js') -UseBasicParsing
-    $publicModelManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/model-manager.js') -UseBasicParsing
-    $publicSettingsManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/settings-manager.js') -UseBasicParsing
+    $publicAppResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/app.js') -UseBasicParsing
+    $publicModelManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/model-manager.js') -UseBasicParsing
+    $publicSettingsManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/settings-manager.js') -UseBasicParsing
     if ($publicResponse.Content -notmatch 'id="startBtn"' -or
-        $publicResponse.Content -notmatch 'href="styles.css"' -or
-        $publicResponse.Content -notmatch 'src="model-manager.js"' -or
-        $publicResponse.Content -notmatch 'src="setup-guide.js"' -or
-        $publicResponse.Content -notmatch 'src="settings-manager.js"' -or
-        $publicResponse.Content -notmatch 'src="app.js"' -or
+        $publicResponse.Content -notmatch 'href="css/styles.css"' -or
+        $publicResponse.Content -notmatch 'src="js/model-manager.js"' -or
+        $publicResponse.Content -notmatch 'src="js/setup-guide.js"' -or
+        $publicResponse.Content -notmatch 'src="js/settings-manager.js"' -or
+        $publicResponse.Content -notmatch 'src="js/app.js"' -or
         $publicAppResponse.Content -notmatch 'initializeApplication' -or
         $publicModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet' -or
         $publicSettingsManagerResponse.Content -notmatch 'racat-settings-v1') {

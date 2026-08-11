@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const detectorPath = path.join(__dirname, '..', 'standing-detector.js');
+const detectorPath = path.join(__dirname, '..', 'js', 'standing-detector.js');
 const detectorExists = fs.existsSync(detectorPath);
 const api = detectorExists ? require(detectorPath) : {};
 
