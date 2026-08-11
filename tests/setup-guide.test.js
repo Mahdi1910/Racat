@@ -14,9 +14,6 @@ test('setup guide module exists', () => {
 function correctFeatures(overrides = {}) {
     return {
         faceVisible: true,
-        lightingGood: true,
-        angleAvailable: false,
-        angleGood: true,
         faceWidth: 0.10,
         faceCenterY: 0.20,
         ...overrides
@@ -25,12 +22,10 @@ function correctFeatures(overrides = {}) {
 
 const classificationCases = [
     ['FACE_NOT_VISIBLE', { faceVisible: false }],
-    ['IMPROVE_LIGHTING', { lightingGood: false }],
-    ['FIX_PHONE_ANGLE', { angleAvailable: true, angleGood: false }],
     ['MOVE_BACK_ONE_STEP', { faceWidth: 0.20 }],
     ['MOVE_CLOSER_ONE_STEP', { faceWidth: 0.03 }],
-    ['FACE_TOO_LOW', { faceCenterY: 0.40 }],
-    ['FACE_TOO_HIGH', { faceCenterY: 0.02 }],
+    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.40 }],
+    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.02 }],
     ['POSITION_CORRECT', {}]
 ];
 
@@ -41,11 +36,12 @@ for (const [expected, overrides] of classificationCases) {
     });
 }
 
-test('missing orientation data does not block correct placement', () => {
-    assert.equal(api.classifySetup(correctFeatures({
-        angleAvailable: false,
-        angleGood: false
-    })), 'POSITION_CORRECT');
+test('does not require lighting information', () => {
+    assert.equal(api.classifySetup(correctFeatures()), 'POSITION_CORRECT');
+});
+
+test('does not require orientation information', () => {
+    assert.equal(api.classifySetup(correctFeatures()), 'POSITION_CORRECT');
 });
 
 test('extracts normalized face center and width from reliable face points', () => {
@@ -71,43 +67,8 @@ test('requires at least two reliable face points', () => {
     assert.equal(result.faceVisible, false);
 });
 
-test('measures average image luminance', () => {
-    assert.equal(typeof api.measureBrightness, 'function');
-    const brightness = api.measureBrightness({
-        data: new Uint8ClampedArray([
-            100, 100, 100, 255,
-            200, 200, 200, 255
-        ])
-    });
-
-    assert.equal(Math.round(brightness), 150);
-});
-
-test('one dark frame does not immediately report bad lighting', () => {
-    assert.equal(typeof api.createLightingMonitor, 'function');
-    const monitor = api.createLightingMonitor({ requiredDarkSamples: 3 });
-
-    assert.equal(monitor.update(20), true);
-    assert.equal(monitor.update(20), true);
-    assert.equal(monitor.update(20), false);
-    assert.equal(monitor.update(100), true);
-});
-
-test('normalizes a nearly upright phone angle', () => {
-    assert.equal(typeof api.normalizePhoneAngle, 'function');
-    assert.deepEqual(api.normalizePhoneAngle({ beta: 90, gamma: 5 }), {
-        angleAvailable: true,
-        angleGood: true,
-        beta: 90,
-        gamma: 5
-    });
-});
-
-test('unavailable phone angle remains optional', () => {
-    assert.deepEqual(api.normalizePhoneAngle({ beta: null, gamma: null }), {
-        angleAvailable: false,
-        angleGood: true,
-        beta: null,
-        gamma: null
-    });
+test('removed setup checks are no longer exported', () => {
+    assert.equal(api.measureBrightness, undefined);
+    assert.equal(api.createLightingMonitor, undefined);
+    assert.equal(api.normalizePhoneAngle, undefined);
 });

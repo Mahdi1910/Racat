@@ -17,17 +17,13 @@
 
     const SETUP_CONFIG = Object.freeze({
         faceConfidence: 0.35,
-        faceBandTop: 0.08,
-        faceBandBottom: 0.30,
+        targetBandTop: 0.08,
+        targetBandBottom: 0.30,
         minimumFaceWidth: 0.055,
         maximumFaceWidth: 0.16,
-        minimumBrightness: 45,
         validPositionMs: 800,
         invalidCountdownGraceMs: 250,
-        instructionSpeechCooldownMs: 2000,
-        minimumPhoneBeta: 75,
-        maximumPhoneBeta: 105,
-        maximumPhoneGamma: 20
+        instructionSpeechCooldownMs: 2000
     });
 
     function median(values) {
@@ -66,85 +62,20 @@
         };
     }
 
-    function measureBrightness(imageData) {
-        if (!imageData || !imageData.data || imageData.data.length === 0) return 0;
-
-        let total = 0;
-        let pixelCount = 0;
-        for (let index = 0; index < imageData.data.length; index += 4) {
-            const red = imageData.data[index];
-            const green = imageData.data[index + 1];
-            const blue = imageData.data[index + 2];
-            total += 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-            pixelCount++;
-        }
-
-        return pixelCount > 0 ? total / pixelCount : 0;
-    }
-
-    function createLightingMonitor({
-        minimumBrightness = SETUP_CONFIG.minimumBrightness,
-        requiredDarkSamples = 3
-    } = {}) {
-        let consecutiveDarkSamples = 0;
-
-        function update(brightness) {
-            if (brightness < minimumBrightness) {
-                consecutiveDarkSamples++;
-            } else {
-                consecutiveDarkSamples = 0;
-            }
-
-            return consecutiveDarkSamples < requiredDarkSamples;
-        }
-
-        function reset() {
-            consecutiveDarkSamples = 0;
-        }
-
-        return { reset, update };
-    }
-
-    function normalizePhoneAngle(orientation, config = SETUP_CONFIG) {
-        const beta = orientation?.beta;
-        const gamma = orientation?.gamma;
-
-        if (!Number.isFinite(beta) || !Number.isFinite(gamma)) {
-            return {
-                angleAvailable: false,
-                angleGood: true,
-                beta: null,
-                gamma: null
-            };
-        }
-
-        return {
-            angleAvailable: true,
-            angleGood: beta >= config.minimumPhoneBeta
-                && beta <= config.maximumPhoneBeta
-                && Math.abs(gamma) <= config.maximumPhoneGamma,
-            beta,
-            gamma
-        };
-    }
-
     function classifySetup(features, config = SETUP_CONFIG) {
         if (!features.faceVisible) return 'FACE_NOT_VISIBLE';
-        if (!features.lightingGood) return 'IMPROVE_LIGHTING';
-        if (features.angleAvailable && !features.angleGood) return 'FIX_PHONE_ANGLE';
         if (features.faceWidth > config.maximumFaceWidth) return 'MOVE_BACK_ONE_STEP';
         if (features.faceWidth < config.minimumFaceWidth) return 'MOVE_CLOSER_ONE_STEP';
-        if (features.faceCenterY > config.faceBandBottom) return 'FACE_TOO_LOW';
-        if (features.faceCenterY < config.faceBandTop) return 'FACE_TOO_HIGH';
-        return 'POSITION_CORRECT';
+
+        const insideTarget = features.faceCenterY >= config.targetBandTop
+            && features.faceCenterY <= config.targetBandBottom;
+
+        return insideTarget ? 'POSITION_CORRECT' : 'FACE_OUTSIDE_TARGET';
     }
 
     return {
         SETUP_CONFIG,
         classifySetup,
-        createLightingMonitor,
-        extractSetupFeatures,
-        measureBrightness,
-        normalizePhoneAngle
+        extractSetupFeatures
     };
 }));
