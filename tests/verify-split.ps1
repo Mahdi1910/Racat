@@ -19,6 +19,7 @@ $detectorPath = Join-Path $projectDir 'js\standing-detector.js'
 $modelManagerPath = Join-Path $projectDir 'js\model-manager.js'
 $setupGuidePath = Join-Path $projectDir 'js\setup-guide.js'
 $settingsManagerPath = Join-Path $projectDir 'js\settings-manager.js'
+$httpsUtilsPath = Join-Path $projectDir 'scripts\https-utils.ps1'
 $launcherPath = Join-Path $projectDir 'start-https-server.ps1'
 
 Assert-Condition (Test-Path -LiteralPath $htmlPath) 'index.html is missing.'
@@ -28,6 +29,7 @@ Assert-Condition (Test-Path -LiteralPath $detectorPath) 'standing-detector.js is
 Assert-Condition (Test-Path -LiteralPath $modelManagerPath) 'model-manager.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $setupGuidePath) 'setup-guide.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $settingsManagerPath) 'settings-manager.js is missing.'
+Assert-Condition (Test-Path -LiteralPath $httpsUtilsPath) 'scripts/https-utils.ps1 is missing.'
 Assert-Condition (Test-Path -LiteralPath $launcherPath) 'start-https-server.ps1 is missing.'
 
 $html = Get-Content -LiteralPath $htmlPath -Raw -Encoding utf8
@@ -37,6 +39,7 @@ $detector = Get-Content -LiteralPath $detectorPath -Raw -Encoding utf8
 $modelManager = Get-Content -LiteralPath $modelManagerPath -Raw -Encoding utf8
 $setupGuide = Get-Content -LiteralPath $setupGuidePath -Raw -Encoding utf8
 $settingsManager = Get-Content -LiteralPath $settingsManagerPath -Raw -Encoding utf8
+$httpsUtils = Get-Content -LiteralPath $httpsUtilsPath -Raw -Encoding utf8
 $launcher = Get-Content -LiteralPath $launcherPath -Raw -Encoding utf8
 
 Assert-Condition ($html.Contains('<link rel="stylesheet" href="css/styles.css">')) 'index.html does not load css/styles.css.'
@@ -266,26 +269,31 @@ foreach ($token in $removedFeatureTokens) {
 }
 
 $requiredLauncherBehavior = @(
+    ". (Join-Path `$projectDir 'scripts\https-utils.ps1')",
+    'Invoke-WithRetry',
+    'Test-TunnelReadyLog',
+    "-OperationName 'Waiting for Cloudflare Tunnel to connect'",
+    "-OperationName 'Waiting for the public HTTPS address'",
     '$localAppResponse = Invoke-WebRequest',
-    '$publicAppResponse = Invoke-WebRequest',
+    '$appResponse = Invoke-WebRequest',
     '$localModelManagerResponse = Invoke-WebRequest',
-    '$publicModelManagerResponse = Invoke-WebRequest',
+    '$modelManagerResponse = Invoke-WebRequest',
     '$localSettingsManagerResponse = Invoke-WebRequest',
-    '$publicSettingsManagerResponse = Invoke-WebRequest',
+    '$settingsManagerResponse = Invoke-WebRequest',
     '$localModelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
-    '$publicModelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
+    '$modelManagerResponse.Content -notmatch ''poseDetection.SupportedModels.MoveNet''',
     '$response.Content -notmatch ''href="css/styles.css"''',
     '$response.Content -notmatch ''src="js/model-manager.js"''',
     '$response.Content -notmatch ''src="js/setup-guide.js"''',
     '$response.Content -notmatch ''src="js/settings-manager.js"''',
     '$response.Content -notmatch ''src="js/app.js"''',
-    '$publicResponse.Content -notmatch ''href="css/styles.css"''',
-    '$publicResponse.Content -notmatch ''src="js/model-manager.js"''',
-    '$publicResponse.Content -notmatch ''src="js/setup-guide.js"''',
-    '$publicResponse.Content -notmatch ''src="js/settings-manager.js"''',
+    '$rootResponse.Content -notmatch ''href="css/styles.css"''',
+    '$rootResponse.Content -notmatch ''src="js/model-manager.js"''',
+    '$rootResponse.Content -notmatch ''src="js/setup-guide.js"''',
+    '$rootResponse.Content -notmatch ''src="js/settings-manager.js"''',
     '$localSettingsManagerResponse.Content -notmatch ''racat-settings-v1''',
-    '$publicSettingsManagerResponse.Content -notmatch ''racat-settings-v1''',
-    '$publicResponse.Content -notmatch ''src="js/app.js"'''
+    '$settingsManagerResponse.Content -notmatch ''racat-settings-v1''',
+    '$rootResponse.Content -notmatch ''src="js/app.js"'''
 )
 foreach ($token in $requiredLauncherBehavior) {
     Assert-Condition ($launcher.Contains($token)) "HTTPS launcher does not verify the split assets: $token"

@@ -8,6 +8,8 @@ $errLog = Join-Path $toolsDir 'cloudflared-error.log'
 $serverProcess = $null
 $tunnelProcess = $null
 
+. (Join-Path $projectDir 'scripts\https-utils.ps1')
+
 New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
 
 try {
@@ -87,22 +89,63 @@ try {
         throw "Could not create the HTTPS tunnel.`n$details"
     }
 
-    Start-Sleep -Seconds 1
-    $publicResponse = Invoke-WebRequest -Uri $publicUrl -UseBasicParsing
-    $publicAppResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/app.js') -UseBasicParsing
-    $publicModelManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/model-manager.js') -UseBasicParsing
-    $publicSettingsManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/settings-manager.js') -UseBasicParsing
-    if ($publicResponse.Content -notmatch 'id="startBtn"' -or
-        $publicResponse.Content -notmatch 'href="css/styles.css"' -or
-        $publicResponse.Content -notmatch 'src="js/model-manager.js"' -or
-        $publicResponse.Content -notmatch 'src="js/setup-guide.js"' -or
-        $publicResponse.Content -notmatch 'src="js/settings-manager.js"' -or
-        $publicResponse.Content -notmatch 'src="js/app.js"' -or
-        $publicAppResponse.Content -notmatch 'initializeApplication' -or
-        $publicModelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet' -or
-        $publicSettingsManagerResponse.Content -notmatch 'racat-settings-v1') {
-        throw 'HTTPS verification failed: the public link is not serving Racat\index.html.'
-    }
+    Invoke-WithRetry `
+        -Operation {
+            if ($tunnelProcess.HasExited) {
+                throw 'Cloudflare Tunnel stopped before it connected.'
+            }
+
+            $connectionLog = ''
+            if (Test-Path $outLog) { $connectionLog += Get-Content $outLog -Raw -ErrorAction SilentlyContinue }
+            if (Test-Path $errLog) { $connectionLog += Get-Content $errLog -Raw -ErrorAction SilentlyContinue }
+            if (-not (Test-TunnelReadyLog $connectionLog)) {
+                throw 'The hostname exists, but the tunnel connection is not registered yet.'
+            }
+
+            return $true
+        } `
+        -MaximumAttempts 60 `
+        -DelayMilliseconds 1000 `
+        -OperationName 'Waiting for Cloudflare Tunnel to connect' | Out-Null
+
+    $publicAssets = Invoke-WithRetry `
+        -Operation {
+            if ($tunnelProcess.HasExited) {
+                throw 'Cloudflare Tunnel stopped before the public address became ready.'
+            }
+
+            $rootResponse = Invoke-WebRequest -Uri $publicUrl -UseBasicParsing
+            $appResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/app.js') -UseBasicParsing
+            $modelManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/model-manager.js') -UseBasicParsing
+            $settingsManagerResponse = Invoke-WebRequest -Uri ($publicUrl + '/js/settings-manager.js') -UseBasicParsing
+
+            if ($rootResponse.Content -notmatch 'id="startBtn"' -or
+                $rootResponse.Content -notmatch 'href="css/styles.css"' -or
+                $rootResponse.Content -notmatch 'src="js/model-manager.js"' -or
+                $rootResponse.Content -notmatch 'src="js/setup-guide.js"' -or
+                $rootResponse.Content -notmatch 'src="js/settings-manager.js"' -or
+                $rootResponse.Content -notmatch 'src="js/app.js"' -or
+                $appResponse.Content -notmatch 'initializeApplication' -or
+                $modelManagerResponse.Content -notmatch 'poseDetection.SupportedModels.MoveNet' -or
+                $settingsManagerResponse.Content -notmatch 'racat-settings-v1') {
+                throw 'The public address is reachable but is not serving the Racat application yet.'
+            }
+
+            return [PSCustomObject]@{
+                Root = $rootResponse
+                App = $appResponse
+                ModelManager = $modelManagerResponse
+                SettingsManager = $settingsManagerResponse
+            }
+        } `
+        -MaximumAttempts 20 `
+        -DelayMilliseconds 1500 `
+        -OperationName 'Waiting for the public HTTPS address'
+
+    $publicResponse = $publicAssets.Root
+    $publicAppResponse = $publicAssets.App
+    $publicModelManagerResponse = $publicAssets.ModelManager
+    $publicSettingsManagerResponse = $publicAssets.SettingsManager
 
     Clear-Host
     Write-Host '============================================' -ForegroundColor Green
