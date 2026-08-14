@@ -84,7 +84,10 @@
         now = () => performance.now()
     }) {
         if (!tf || !poseDetection) {
-            throw new Error('TensorFlow.js and pose detection are required.');
+            throw new ModelManagerError(
+                'MODEL_LIBRARY_LOAD',
+                new Error('TensorFlow.js and pose detection are required.')
+            );
         }
 
         async function removeCachedModel() {
@@ -96,7 +99,13 @@
         }
 
         async function hasValidModel() {
-            const models = await tf.io.listModels();
+            let models;
+            try {
+                models = await tf.io.listModels();
+            } catch (error) {
+                throw new ModelManagerError('STORAGE_READ', error);
+            }
+
             if (!models[MODEL_CONFIG.indexedDbUrl]) return false;
 
             try {
@@ -175,14 +184,14 @@
                     fetchFunc: createTrackedFetch(speedTracker, () => emitProgress())
                 });
             } catch (error) {
-                throw new ModelManagerError('NETWORK', error);
+                throw new ModelManagerError('MODEL_DOWNLOAD', error);
             }
 
             try {
                 await downloadedModel.save(MODEL_CONFIG.indexedDbUrl);
             } catch (error) {
                 downloadedModel.dispose();
-                throw new ModelManagerError('STORAGE', error);
+                throw new ModelManagerError('STORAGE_WRITE', error);
             }
 
             downloadedModel.dispose();
@@ -192,15 +201,19 @@
             }
         }
 
-        function createDetector() {
-            return poseDetection.createDetector(
-                poseDetection.SupportedModels.MoveNet,
-                {
-                    modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-                    modelUrl: MODEL_CONFIG.indexedDbUrl,
-                    enableSmoothing: true
-                }
-            );
+        async function createDetector() {
+            try {
+                return await poseDetection.createDetector(
+                    poseDetection.SupportedModels.MoveNet,
+                    {
+                        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+                        modelUrl: MODEL_CONFIG.indexedDbUrl,
+                        enableSmoothing: true
+                    }
+                );
+            } catch (error) {
+                throw new ModelManagerError('DETECTOR_INIT', error);
+            }
         }
 
         return {
