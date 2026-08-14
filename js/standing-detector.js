@@ -26,7 +26,6 @@
         countdownFrom: 5,
         calibrationDurationMs: 1000,
         minimumCalibrationSamples: 10,
-        maximumCalibrationSpread: 0.04,
         standingZoneRadius: 0.07,
         leaveStandingConfirmMs: 250,
         missingFaceConfirmMs: 400,
@@ -87,12 +86,6 @@
         function finishCalibration() {
             if (calibrationSamples.length < config.minimumCalibrationSamples) {
                 return { ok: false, reason: 'NOT_ENOUGH_SAMPLES' };
-            }
-
-            const lowest = Math.min(...calibrationSamples);
-            const highest = Math.max(...calibrationSamples);
-            if (highest - lowest > config.maximumCalibrationSpread) {
-                return { ok: false, reason: 'FACE_NOT_STABLE' };
             }
 
             standingFaceY = median(calibrationSamples);
