@@ -235,9 +235,14 @@ foreach ($token in $requiredModelManagerBehavior) {
 }
 
 $requiredSetupGuideBehavior = @(
+    'faceConfidence: 0.35',
+    'targetBandTop: 0.01',
     'targetBandBottom: 0.30',
+    'minimumFaceWidth: 0.02',
+    'maximumFaceWidth: 0.20',
     'validPositionMs: 800',
-    'invalidCountdownGraceMs: 250',
+    'invalidCountdownGraceMs: 1500',
+    'instructionSpeechCooldownMs: 2000',
     'function classifySetup(features, config = SETUP_CONFIG)',
     "return 'FACE_NOT_VISIBLE'",
     "'POSITION_CORRECT'"
