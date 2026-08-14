@@ -22,10 +22,10 @@ function correctFeatures(overrides = {}) {
 
 const classificationCases = [
     ['FACE_NOT_VISIBLE', { faceVisible: false }],
-    ['MOVE_BACK_ONE_STEP', { faceWidth: 0.20 }],
-    ['MOVE_CLOSER_ONE_STEP', { faceWidth: 0.03 }],
-    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.40 }],
-    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.02 }],
+    ['MOVE_BACK_ONE_STEP', { faceWidth: 0.201 }],
+    ['MOVE_CLOSER_ONE_STEP', { faceWidth: 0.019 }],
+    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.31 }],
+    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.009 }],
     ['POSITION_CORRECT', {}]
 ];
 
@@ -35,6 +35,26 @@ for (const [expected, overrides] of classificationCases) {
         assert.equal(api.classifySetup(correctFeatures(overrides)), expected);
     });
 }
+
+test('accepts the exact vertical target boundaries', () => {
+    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.01 })), 'POSITION_CORRECT');
+    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.30 })), 'POSITION_CORRECT');
+});
+
+test('rejects positions just outside the vertical target boundaries', () => {
+    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.009 })), 'FACE_OUTSIDE_TARGET');
+    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.301 })), 'FACE_OUTSIDE_TARGET');
+});
+
+test('accepts the exact face-width distance boundaries', () => {
+    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.02 })), 'POSITION_CORRECT');
+    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.20 })), 'POSITION_CORRECT');
+});
+
+test('rejects face width just outside the allowed distance boundaries', () => {
+    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.019 })), 'MOVE_CLOSER_ONE_STEP');
+    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.201 })), 'MOVE_BACK_ONE_STEP');
+});
 
 test('does not require lighting information', () => {
     assert.equal(api.classifySetup(correctFeatures()), 'POSITION_CORRECT');
