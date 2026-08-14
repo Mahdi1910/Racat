@@ -17,12 +17,12 @@
 
     const SETUP_CONFIG = Object.freeze({
         faceConfidence: 0.35,
-        targetBandTop: 0.08,
+        targetBandTop: 0.01,
         targetBandBottom: 0.30,
-        minimumFaceWidth: 0.055,
-        maximumFaceWidth: 0.16,
+        minimumFaceWidth: 0.02,
+        maximumFaceWidth: 0.20,
         validPositionMs: 800,
-        invalidCountdownGraceMs: 250,
+        invalidCountdownGraceMs: 1500,
         instructionSpeechCooldownMs: 2000
     });
 
