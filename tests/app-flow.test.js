@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 const SettingsManager = require(path.join(__dirname, '..', 'js', 'settings-manager.js'));
+const RealStandingDetection = require(path.join(__dirname, '..', 'js', 'standing-detector.js'));
 
 function createClassList() {
     const values = new Set();
@@ -47,7 +48,24 @@ function createElement(id) {
     };
 }
 
-function createStandingDetection(countdownValues) {
+function createStandingDetection(countdownValues, useRealStandingDetection = false) {
+    if (useRealStandingDetection) {
+        return {
+            ...RealStandingDetection,
+            async runCountdown({
+                from = RealStandingDetection.DEFAULT_CONFIG.countdownFrom,
+                onTick,
+                speakValue
+            }) {
+                for (let value = from; value >= 0; value--) {
+                    countdownValues.push(value);
+                    onTick(value);
+                    speakValue(value);
+                }
+            }
+        };
+    }
+
     const StandingState = Object.freeze({
         UNCALIBRATED: 'UNCALIBRATED',
         STANDING: 'STANDING',
@@ -180,7 +198,10 @@ function createHarness(options = {}) {
                 return features.result || 'POSITION_CORRECT';
             }
         },
-        StandingDetection: createStandingDetection(countdownValues),
+        StandingDetection: createStandingDetection(
+            countdownValues,
+            options.useRealStandingDetection === true
+        ),
         SpeechSynthesisUtterance: function SpeechSynthesisUtterance(text) { this.text = text; },
         document: {
             documentElement: { lang: 'ar', dir: 'rtl' },
@@ -306,6 +327,26 @@ test('After Reset, a fresh valid position runs 5 through 0 and resumes tracking 
     assert.equal(harness.evaluate('standingDetector.getSnapshot().state'), 'STANDING');
     assert.equal(harness.elements.resetBtn.style.display, 'block');
     assert.equal(harness.elements['positioning-overlay'].hidden, true);
+});
+
+test('varied calibration samples complete the first countdown without a spread restart', async () => {
+    const harness = createHarness({ useRealStandingDetection: true });
+    harness.evaluate('video = document.getElementById("video"); setAppState(AppState.POSITIONING)');
+    const faceYs = [0.10, 0.20, 0.11, 0.21, 0.12, 0.22, 0.13, 0.23, 0.14, 0.24];
+
+    faceYs.forEach((faceY, index) => {
+        const y = faceY * 1000;
+        harness.context.processSetupFrame([
+            { name: 'nose', y, score: 0.9 },
+            { name: 'left_eye', y, score: 0.9 }
+        ], index * 100);
+    });
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.deepEqual(harness.countdownValues, [5, 4, 3, 2, 1, 0]);
+    assert.equal(harness.evaluate('appState'), 'TRACKING_PRAYER');
+    assert.equal(harness.evaluate('standingDetector.getSnapshot().state'), 'STANDING');
+    assert.equal(harness.evaluate('standingDetector.getSnapshot().standingFaceY'), 0.17);
 });
 
 test('invalid positioning for less than 1500 ms does not cancel countdown', () => {
