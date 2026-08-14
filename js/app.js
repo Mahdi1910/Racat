@@ -51,10 +51,18 @@ const SETUP_MESSAGE_KEYS = Object.freeze({
 });
 
 const UserError = Object.freeze({
-    NETWORK: 'error_network',
-    STORAGE: 'error_storage',
+    MODEL_LIBRARY_LOAD: 'error_model_library_load',
+    STORAGE_READ: 'error_storage_read',
+    MODEL_DOWNLOAD: 'error_model_download',
+    STORAGE_WRITE: 'error_storage_write',
     MODEL_INVALID: 'error_model_invalid',
-    CAMERA_DENIED: 'camera_denied',
+    DETECTOR_INIT: 'error_detector_init',
+    CAMERA_UNSUPPORTED: 'camera_unsupported',
+    CAMERA_PERMISSION_DENIED: 'camera_permission_denied',
+    CAMERA_NOT_FOUND: 'camera_not_found',
+    CAMERA_BUSY: 'camera_busy',
+    CAMERA_CONSTRAINTS: 'camera_constraints',
+    CAMERA_START_FAILED: 'camera_start_failed',
     UNKNOWN: 'error_unknown'
 });
 
@@ -224,7 +232,9 @@ async function initializeApplication() {
     document.getElementById('model-download-description').hidden = false;
 
     try {
-        modelManager = ModelManager.createModelManager({ tf, poseDetection });
+        const tfApi = globalThis.tf;
+        const poseApi = globalThis.poseDetection;
+        modelManager = ModelManager.createModelManager({ tf: tfApi, poseDetection: poseApi });
         const hasModel = await modelManager.hasValidModel();
 
         if (!hasModel) {
@@ -235,7 +245,7 @@ async function initializeApplication() {
         detector = await modelManager.createDetector();
         setAppState(AppState.MAIN_READY);
     } catch (error) {
-        showModelError(error.code || 'STORAGE');
+        showModelError(error.code || 'UNKNOWN');
     }
 }
 
@@ -260,8 +270,34 @@ async function downloadModel() {
         detector = await modelManager.createDetector();
         setAppState(AppState.MAIN_READY);
     } catch (error) {
-        showModelError(error.code || 'NETWORK');
+        showModelError(error.code || 'UNKNOWN');
     }
+}
+
+function classifyCameraError(error) {
+    const errorName = error?.name || '';
+
+    if ([
+        'NotAllowedError',
+        'PermissionDeniedError',
+        'SecurityError'
+    ].includes(errorName)) {
+        return 'CAMERA_PERMISSION_DENIED';
+    }
+
+    if (['NotFoundError', 'DevicesNotFoundError'].includes(errorName)) {
+        return 'CAMERA_NOT_FOUND';
+    }
+
+    if (['NotReadableError', 'TrackStartError'].includes(errorName)) {
+        return 'CAMERA_BUSY';
+    }
+
+    if (['OverconstrainedError', 'ConstraintNotSatisfiedError'].includes(errorName)) {
+        return 'CAMERA_CONSTRAINTS';
+    }
+
+    return 'CAMERA_START_FAILED';
 }
 
 async function startApp() {
@@ -280,25 +316,34 @@ async function startApp() {
         beginPositioning();
         renderResult();
     } catch (error) {
+        const errorCode = error.code || classifyCameraError(error);
         statusDot.classList.remove('active');
         statusText.innerText = textFor('camera_failed');
-        subStatus.innerText = textFor('camera_denied');
+        subStatus.innerText = textFor(UserError[errorCode] || UserError.CAMERA_START_FAILED);
         setAppState(AppState.MAIN_READY);
     }
 }
 
 function resetApp() {
+    if (appState !== AppState.TRACKING_PRAYER) return;
+
     rakatCount = 1;
     standReturnCount = 0;
     isCurrentlyDown = false;
     document.getElementById('counter-display').innerText = rakatCount;
-    document.getElementById('sub-status').innerText = textFor('counter_reset');
-    speak('counter_reset');
+    beginPositioning();
 }
 
 async function setupCamera() {
     video = document.getElementById('video');
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const mediaDevices = globalThis.navigator?.mediaDevices;
+    if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
+        const error = new Error('Camera API is unavailable.');
+        error.code = 'CAMERA_UNSUPPORTED';
+        throw error;
+    }
+
+    const stream = await mediaDevices.getUserMedia({
         audio: false,
         video: {
             facingMode: 'user',
