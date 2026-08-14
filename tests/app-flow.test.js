@@ -166,7 +166,7 @@ function createHarness(options = {}) {
         SetupGuide: {
             SETUP_CONFIG: {
                 validPositionMs: 800,
-                invalidCountdownGraceMs: 250,
+                invalidCountdownGraceMs: 1500,
                 instructionSpeechCooldownMs: 2000
             },
             extractSetupFeatures(keypoints) {
@@ -220,6 +220,12 @@ function enterTracking(harness) {
     harness.evaluate('for (let i = 0; i < 10; i++) standingDetector.addCalibrationSample(0.2); standingDetector.finishCalibration()');
     harness.elements.video.srcObject = { id: 'existing-stream' };
     harness.evaluate("video = document.getElementById('video'); isRunning = true");
+}
+
+function setupResultPoints(result) {
+    const points = [];
+    points.setupFeatures = { result };
+    return points;
 }
 
 test('Reset from tracking returns to positioning, clears calibration, and resets the counter', () => {
@@ -300,6 +306,62 @@ test('After Reset, a fresh valid position runs 5 through 0 and resumes tracking 
     assert.equal(harness.evaluate('standingDetector.getSnapshot().state'), 'STANDING');
     assert.equal(harness.elements.resetBtn.style.display, 'block');
     assert.equal(harness.elements['positioning-overlay'].hidden, true);
+});
+
+test('invalid positioning for less than 1500 ms does not cancel countdown', () => {
+    const harness = createHarness();
+    harness.evaluate('video = document.getElementById("video"); setAppState(AppState.COUNTDOWN)');
+    const invalid = setupResultPoints('FACE_OUTSIDE_TARGET');
+
+    harness.context.processSetupFrame(invalid, 1000);
+    harness.context.processSetupFrame(invalid, 2499);
+
+    assert.equal(harness.evaluate('appState'), 'COUNTDOWN');
+});
+
+test('continuous invalid positioning cancels countdown at 1500 ms', () => {
+    const harness = createHarness();
+    harness.evaluate('video = document.getElementById("video"); setAppState(AppState.COUNTDOWN)');
+    const invalid = setupResultPoints('FACE_OUTSIDE_TARGET');
+
+    harness.context.processSetupFrame(invalid, 1000);
+    harness.context.processSetupFrame(invalid, 2499);
+    assert.equal(harness.evaluate('appState'), 'COUNTDOWN');
+    harness.context.processSetupFrame(invalid, 2500);
+
+    assert.equal(harness.evaluate('appState'), 'POSITIONING');
+    assert.equal(harness.elements['countdown-display'].innerText, '');
+});
+
+test('a valid result resets the continuous invalid countdown timer', () => {
+    const harness = createHarness();
+    harness.evaluate('video = document.getElementById("video"); setAppState(AppState.COUNTDOWN)');
+    const invalid = setupResultPoints('FACE_OUTSIDE_TARGET');
+    const valid = setupResultPoints('POSITION_CORRECT');
+
+    harness.context.processSetupFrame(invalid, 1000);
+    harness.context.processSetupFrame(invalid, 2000);
+    harness.context.processSetupFrame(valid, 2100);
+    harness.context.processSetupFrame(invalid, 2200);
+    harness.context.processSetupFrame(invalid, 3699);
+
+    assert.equal(harness.evaluate('appState'), 'COUNTDOWN');
+    harness.context.processSetupFrame(invalid, 3700);
+    assert.equal(harness.evaluate('appState'), 'POSITIONING');
+});
+
+test('countdown cancellation does not recreate camera or AI resources', () => {
+    const harness = createHarness();
+    harness.evaluate('video = document.getElementById("video"); setAppState(AppState.COUNTDOWN)');
+    const invalid = setupResultPoints('FACE_OUTSIDE_TARGET');
+
+    harness.context.processSetupFrame(invalid, 1000);
+    harness.context.processSetupFrame(invalid, 2500);
+
+    assert.equal(harness.evaluate('appState'), 'POSITIONING');
+    assert.equal(harness.calls.getUserMedia, 0);
+    assert.equal(harness.calls.createModelManager, 0);
+    assert.equal(harness.calls.createDetector, 0);
 });
 
 const cameraCases = [
