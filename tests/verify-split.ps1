@@ -210,12 +210,18 @@ $requiredDetectorBehavior = @(
     "UNCALIBRATED",
     "STANDING",
     "NOT_STANDING",
+    "minimumCalibrationSamples: 10",
+    "standingZoneRadius: 0.07",
+    "leaveStandingConfirmMs: 250",
     "missingFaceConfirmMs: 400",
-    "returnToStandingConfirmMs: 600"
+    "returnToStandingConfirmMs: 600",
+    'standingFaceY = median(calibrationSamples);'
 )
 foreach ($token in $requiredDetectorBehavior) {
     Assert-Condition ($detector.Contains($token)) "standing-detector.js lost required behavior: $token"
 }
+Assert-Condition (-not $detector.Contains('maximumCalibrationSpread')) 'standing-detector.js restored the removed calibration spread threshold.'
+Assert-Condition (-not $detector.Contains('FACE_NOT_STABLE')) 'standing-detector.js restored the removed calibration spread rejection.'
 
 $requiredModelManagerBehavior = @(
     'indexeddb://racat-movenet-singlepose-lightning-v4',
