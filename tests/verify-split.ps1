@@ -19,6 +19,7 @@ $detectorPath = Join-Path $projectDir 'js\standing-detector.js'
 $modelManagerPath = Join-Path $projectDir 'js\model-manager.js'
 $setupGuidePath = Join-Path $projectDir 'js\setup-guide.js'
 $settingsManagerPath = Join-Path $projectDir 'js\settings-manager.js'
+$appFlowTestPath = Join-Path $projectDir 'tests\app-flow.test.js'
 $httpsUtilsPath = Join-Path $projectDir 'scripts\https-utils.ps1'
 $launcherPath = Join-Path $projectDir 'start-https-server.ps1'
 
@@ -29,6 +30,7 @@ Assert-Condition (Test-Path -LiteralPath $detectorPath) 'standing-detector.js is
 Assert-Condition (Test-Path -LiteralPath $modelManagerPath) 'model-manager.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $setupGuidePath) 'setup-guide.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $settingsManagerPath) 'settings-manager.js is missing.'
+Assert-Condition (Test-Path -LiteralPath $appFlowTestPath) 'tests/app-flow.test.js is missing.'
 Assert-Condition (Test-Path -LiteralPath $httpsUtilsPath) 'scripts/https-utils.ps1 is missing.'
 Assert-Condition (Test-Path -LiteralPath $launcherPath) 'start-https-server.ps1 is missing.'
 
@@ -92,13 +94,23 @@ foreach ($token in $requiredMarkup) {
 }
 
 $requiredVendors = @(
-    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core',
-    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter',
-    'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl',
-    'https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection'
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.22.0"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.22.0"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3"></script>'
 )
-foreach ($url in $requiredVendors) {
-    Assert-Condition ($html.Contains($url)) "index.html lost required vendor script: $url"
+foreach ($scriptTag in $requiredVendors) {
+    Assert-Condition ($html.Contains($scriptTag)) "index.html lost or changed pinned vendor script: $scriptTag"
+}
+
+$forbiddenUnversionedVendors = @(
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>'
+)
+foreach ($scriptTag in $forbiddenUnversionedVendors) {
+    Assert-Condition (-not $html.Contains($scriptTag)) "index.html still contains unversioned TensorFlow dependency: $scriptTag"
 }
 
 $requiredSelectors = @(
@@ -148,7 +160,13 @@ $requiredBehavior = @(
     'function populateVoiceOptions()',
     'function applyLanguage()',
     'function resetApp()',
+    "if (appState !== AppState.TRACKING_PRAYER) return;",
+    'function classifyCameraError(error)',
     'async function setupCamera()',
+    'const mediaDevices = globalThis.navigator?.mediaDevices;',
+    'const tfApi = globalThis.tf;',
+    'const poseApi = globalThis.poseDetection;',
+    "error.code || 'UNKNOWN'",
     'function speak(messageKey, replacements = {})',
     'SettingsManager.createSpeechRequest(',
     'function processPose(keypoints)',
@@ -174,6 +192,15 @@ foreach ($token in $requiredBehavior) {
     Assert-Condition ($js.Contains($token)) "app.js lost behavior-critical code: $token"
 }
 
+$forbiddenErrorFallbacks = @(
+    "error.code || 'STORAGE'",
+    "error.code || 'NETWORK'",
+    "subStatus.innerText = textFor('camera_denied')"
+)
+foreach ($token in $forbiddenErrorFallbacks) {
+    Assert-Condition (-not $js.Contains($token)) "app.js restored an inaccurate broad error fallback: $token"
+}
+
 $requiredDetectorBehavior = @(
     "nose",
     "left_eye",
@@ -194,7 +221,13 @@ $requiredModelManagerBehavior = @(
     'indexeddb://racat-movenet-singlepose-lightning-v4',
     'async function hasValidModel()',
     'async function downloadModel(onProgress = () => {})',
-    'function createDetector()',
+    'async function createDetector()',
+    "'MODEL_LIBRARY_LOAD'",
+    "'STORAGE_READ'",
+    "'MODEL_DOWNLOAD'",
+    "'STORAGE_WRITE'",
+    "'MODEL_INVALID'",
+    "'DETECTOR_INIT'",
     'enableSmoothing: true'
 )
 foreach ($token in $requiredModelManagerBehavior) {
@@ -203,6 +236,8 @@ foreach ($token in $requiredModelManagerBehavior) {
 
 $requiredSetupGuideBehavior = @(
     'targetBandBottom: 0.30',
+    'validPositionMs: 800',
+    'invalidCountdownGraceMs: 250',
     'function classifySetup(features, config = SETUP_CONFIG)',
     "return 'FACE_NOT_VISIBLE'",
     "'POSITION_CORRECT'"
@@ -218,7 +253,18 @@ $requiredSettingsBehavior = @(
     'function translate(',
     'function sortVoices(',
     'function findVoice(',
-    'function createSpeechRequest('
+    'function createSpeechRequest(',
+    'error_model_library_load',
+    'error_storage_read',
+    'error_model_download',
+    'error_storage_write',
+    'error_detector_init',
+    'camera_permission_denied',
+    'camera_not_found',
+    'camera_busy',
+    'camera_constraints',
+    'camera_unsupported',
+    'camera_start_failed'
 )
 foreach ($token in $requiredSettingsBehavior) {
     Assert-Condition ($settingsManager.Contains($token)) "settings-manager.js lost required behavior: $token"
