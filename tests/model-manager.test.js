@@ -27,6 +27,7 @@ function createDependencies(options = {}) {
     const tf = {
         io: {
             async listModels() {
+                if (options.listModelsError) throw options.listModelsError;
                 return saved ? { [api.MODEL_CONFIG.indexedDbUrl]: { dateSaved: new Date() } } : {};
             },
             async removeModel(url) {
@@ -52,6 +53,7 @@ function createDependencies(options = {}) {
         SupportedModels: { MoveNet: 'MoveNet' },
         movenet: { modelType: { SINGLEPOSE_LIGHTNING: 'lightning' } },
         async createDetector(model, config) {
+            if (options.detectorError) throw options.detectorError;
             detectorCalls.push({ model, config });
             return { model, config };
         }
@@ -60,8 +62,14 @@ function createDependencies(options = {}) {
     return { tf, poseDetection, removed, detectorCalls };
 }
 
+test('missing TensorFlow dependency uses MODEL_LIBRARY_LOAD', () => {
+    assert.throws(
+        () => api.createModelManager({ tf: null, poseDetection: {} }),
+        error => error.code === 'MODEL_LIBRARY_LOAD'
+    );
+});
+
 test('missing IndexedDB model returns false', async () => {
-    assert.equal(typeof api.createModelManager, 'function');
     const dependencies = createDependencies({ saved: false });
     const manager = api.createModelManager(dependencies);
 
@@ -74,6 +82,13 @@ test('matching IndexedDB model loads and validates', async () => {
 
     assert.equal(await manager.hasValidModel(), true);
     assert.deepEqual(dependencies.removed, []);
+});
+
+test('IndexedDB listing failure uses STORAGE_READ', async () => {
+    const dependencies = createDependencies({ listModelsError: new Error('blocked') });
+    const manager = api.createModelManager(dependencies);
+
+    await assert.rejects(manager.hasValidModel(), error => error.code === 'STORAGE_READ');
 });
 
 test('corrupt IndexedDB model is removed and returns false', async () => {
@@ -95,7 +110,6 @@ test('download progress never decreases', async () => {
 });
 
 test('speed uses bytes received inside the rolling time window', () => {
-    assert.equal(typeof api.createSpeedTracker, 'function');
     let time = 0;
     const tracker = api.createSpeedTracker({ windowMs: 1500, now: () => time });
 
@@ -118,16 +132,30 @@ test('cached detector uses the IndexedDB model URL', async () => {
     assert.equal(dependencies.detectorCalls[0].config.enableSmoothing, true);
 });
 
-test('network download failure uses the NETWORK error code', async () => {
+test('remote model download failure uses MODEL_DOWNLOAD', async () => {
     const dependencies = createDependencies({ downloadError: new Error('offline') });
     const manager = api.createModelManager(dependencies);
 
-    await assert.rejects(manager.downloadModel(), error => error.code === 'NETWORK');
+    await assert.rejects(manager.downloadModel(), error => error.code === 'MODEL_DOWNLOAD');
 });
 
-test('IndexedDB save failure uses the STORAGE error code', async () => {
+test('IndexedDB save failure uses STORAGE_WRITE', async () => {
     const dependencies = createDependencies({ saveError: new Error('quota') });
     const manager = api.createModelManager(dependencies);
 
-    await assert.rejects(manager.downloadModel(), error => error.code === 'STORAGE');
+    await assert.rejects(manager.downloadModel(), error => error.code === 'STORAGE_WRITE');
+});
+
+test('post-save validation failure uses MODEL_INVALID', async () => {
+    const dependencies = createDependencies({ corrupt: true });
+    const manager = api.createModelManager(dependencies);
+
+    await assert.rejects(manager.downloadModel(), error => error.code === 'MODEL_INVALID');
+});
+
+test('detector creation failure uses DETECTOR_INIT', async () => {
+    const dependencies = createDependencies({ detectorError: new Error('webgl failed') });
+    const manager = api.createModelManager(dependencies);
+
+    await assert.rejects(manager.createDetector(), error => error.code === 'DETECTOR_INIT');
 });
