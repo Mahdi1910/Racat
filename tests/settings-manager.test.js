@@ -32,6 +32,21 @@ const voices = [
     { name: 'Arabic One', lang: 'ar-SA', voiceURI: 'voice-ar-1', default: true }
 ];
 
+const newErrorKeys = [
+    'error_model_library_load',
+    'error_storage_read',
+    'error_model_download',
+    'error_storage_write',
+    'error_model_invalid',
+    'error_detector_init',
+    'camera_permission_denied',
+    'camera_not_found',
+    'camera_busy',
+    'camera_constraints',
+    'camera_unsupported',
+    'camera_start_failed'
+];
+
 test('settings manager module exists', () => {
     assert.equal(moduleExists, true);
 });
@@ -110,6 +125,16 @@ test('translates a message into Arabic and English', () => {
 test('falls back to Arabic when a language or key is unknown', () => {
     assert.equal(api.translate('settings', 'unknown'), 'الإعدادات');
     assert.equal(api.translate('unknown_key', 'en'), 'unknown_key');
+});
+
+test('all new model and camera errors have Arabic and English translations', () => {
+    for (const key of newErrorKeys) {
+        const arabic = api.translate(key, 'ar');
+        const english = api.translate(key, 'en');
+        assert.notEqual(arabic, key, `missing Arabic translation for ${key}`);
+        assert.notEqual(english, key, `missing English translation for ${key}`);
+        assert.notEqual(arabic, english, `translations should differ for ${key}`);
+    }
 });
 
 test('places matching-language voices before other voices', () => {
