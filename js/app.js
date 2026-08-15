@@ -6,18 +6,34 @@ let modelManager;
 let currentSettings = SettingsManager.loadSettings();
 let availableVoices = [];
 
+const developerDefaults = DeveloperSettings.createDefaults(
+    SetupGuide.SETUP_CONFIG,
+    StandingDetection.DEFAULT_CONFIG
+);
+let developerSettings = DeveloperSettings.loadSettings(developerDefaults);
+let runtimeSetupConfig = DeveloperSettings.buildSetupConfig(
+    developerSettings,
+    SetupGuide.SETUP_CONFIG
+);
+let runtimeStandingConfig = DeveloperSettings.buildStandingConfig(
+    developerSettings,
+    StandingDetection.DEFAULT_CONFIG
+);
+
 let rakatCount = 1;
 let standReturnCount = 0;
 let isCurrentlyDown = false;
 let isRunning = false;
 let appState = null;
-let standingDetector = StandingDetection.createStandingDetector();
+let standingDetector = StandingDetection.createStandingDetector(runtimeStandingConfig);
 let setupRunId = 0;
 let correctPositionSince = null;
 let invalidCountdownSince = null;
 let lastSetupResult = null;
 let lastSpokenResult = null;
 let lastInstructionSpokenAt = -Infinity;
+let settingsReturnState = null;
+let developerInputElements = new Map();
 
 const AppState = Object.freeze({
     CHECKING_MODEL: 'CHECKING_MODEL',
@@ -76,6 +92,12 @@ function setAppState(nextState) {
         AppState.VERIFYING_MODEL,
         AppState.ERROR
     ]);
+    const settingsAccessibleStates = new Set([
+        AppState.MAIN_READY,
+        AppState.POSITIONING,
+        AppState.COUNTDOWN,
+        AppState.TRACKING_PRAYER
+    ]);
     const modelView = document.getElementById('model-view');
     const mainView = document.getElementById('main-view');
     const settingsView = document.getElementById('settings-view');
@@ -109,7 +131,7 @@ function setAppState(nextState) {
     retryButton.hidden = nextState !== AppState.ERROR;
 
     startButton.style.display = nextState === AppState.MAIN_READY ? 'flex' : 'none';
-    settingsButton.style.display = nextState === AppState.MAIN_READY ? 'inline-flex' : 'none';
+    settingsButton.style.display = settingsAccessibleStates.has(nextState) ? 'inline-flex' : 'none';
     resetButton.style.display = nextState === AppState.TRACKING_PRAYER ? 'block' : 'none';
     positioningOverlay.hidden = ![
         AppState.POSITIONING,
@@ -128,6 +150,16 @@ function textFor(key, replacements = {}) {
     return SettingsManager.translate(key, currentSettings.language, replacements);
 }
 
+function developerTextFor(key) {
+    return DeveloperSettings.translate(key, currentSettings.language);
+}
+
+function applyDeveloperTranslations() {
+    for (const element of document.querySelectorAll('[data-dev-i18n]')) {
+        element.textContent = developerTextFor(element.dataset.devI18n);
+    }
+}
+
 function applyLanguage() {
     const language = currentSettings.language;
     document.documentElement.lang = language;
@@ -137,6 +169,7 @@ function applyLanguage() {
     for (const element of document.querySelectorAll('[data-i18n]')) {
         element.textContent = textFor(element.dataset.i18n);
     }
+    applyDeveloperTranslations();
 
     if (appState === AppState.MAIN_READY) {
         document.getElementById('status').innerText = textFor('model_ready');
@@ -171,6 +204,7 @@ function populateVoiceOptions() {
 function renderSettings() {
     document.getElementById('languageSelect').value = currentSettings.language;
     document.getElementById('quietModeToggle').checked = currentSettings.quietMode;
+    renderDeveloperSettingsForm(developerSettings);
     applyLanguage();
     populateVoiceOptions();
 }
@@ -190,8 +224,150 @@ function handleLanguageChange() {
     populateVoiceOptions();
 }
 
+function setDeveloperError(errorKey = null) {
+    const errorElement = document.getElementById('developer-settings-error');
+    if (!errorElement) return;
+
+    if (!errorKey) {
+        errorElement.innerText = '';
+        errorElement.hidden = true;
+        return;
+    }
+
+    errorElement.innerText = developerTextFor(errorKey);
+    errorElement.hidden = false;
+}
+
+function createDeveloperStepperButton(label, key, direction) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'developer-step-button';
+    button.textContent = label;
+    button.setAttribute('aria-label', direction < 0 ? 'Decrease' : 'Increase');
+    button.addEventListener('click', () => adjustDeveloperValue(key, direction));
+    return button;
+}
+
+function renderDeveloperSettingsForm(values = developerSettings) {
+    const list = document.getElementById('developer-settings-list');
+    if (!list) return;
+
+    list.replaceChildren();
+    developerInputElements = new Map();
+
+    for (const field of DeveloperSettings.FIELD_DEFINITIONS) {
+        const row = document.createElement('div');
+        row.className = 'developer-field';
+
+        const copy = document.createElement('div');
+        copy.className = 'developer-field-copy';
+
+        const label = document.createElement('strong');
+        label.dataset.devI18n = field.labelKey;
+        label.textContent = developerTextFor(field.labelKey);
+
+        const description = document.createElement('small');
+        description.dataset.devI18n = field.descriptionKey;
+        description.textContent = developerTextFor(field.descriptionKey);
+
+        copy.appendChild(label);
+        copy.appendChild(description);
+
+        const controls = document.createElement('div');
+        controls.className = 'developer-stepper';
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.inputMode = field.inputMode;
+        input.step = String(field.step);
+        input.value = String(values[field.key]);
+        input.dataset.developerKey = field.key;
+        input.setAttribute('aria-label', developerTextFor(field.labelKey));
+        developerInputElements.set(field.key, input);
+
+        const unit = document.createElement('span');
+        unit.className = 'developer-unit';
+        unit.dataset.devI18n = field.unitKey;
+        unit.textContent = developerTextFor(field.unitKey);
+
+        controls.appendChild(createDeveloperStepperButton('−', field.key, -1));
+        controls.appendChild(input);
+        controls.appendChild(unit);
+        controls.appendChild(createDeveloperStepperButton('+', field.key, 1));
+
+        row.appendChild(copy);
+        row.appendChild(controls);
+        list.appendChild(row);
+    }
+
+    setDeveloperError();
+    applyDeveloperTranslations();
+}
+
+function adjustDeveloperValue(key, direction) {
+    const field = DeveloperSettings.FIELD_DEFINITIONS.find(item => item.key === key);
+    const input = developerInputElements.get(key);
+    if (!field || !input) return;
+
+    const current = Number(input.value);
+    const startingValue = Number.isFinite(current) ? current : 0;
+    const nextValue = Math.round((startingValue + field.step * direction) * 1000) / 1000;
+    input.value = String(nextValue);
+}
+
+function collectDeveloperSettingsForm() {
+    const values = {};
+    for (const field of DeveloperSettings.FIELD_DEFINITIONS) {
+        values[field.key] = developerInputElements.get(field.key)?.value ?? '';
+    }
+    return values;
+}
+
+function refreshRuntimeDeveloperConfig(nextDeveloperSettings) {
+    developerSettings = { ...nextDeveloperSettings };
+    runtimeSetupConfig = DeveloperSettings.buildSetupConfig(
+        developerSettings,
+        SetupGuide.SETUP_CONFIG
+    );
+    runtimeStandingConfig = DeveloperSettings.buildStandingConfig(
+        developerSettings,
+        StandingDetection.DEFAULT_CONFIG
+    );
+    standingDetector = StandingDetection.createStandingDetector(runtimeStandingConfig);
+    applyRuntimeFaceGuide();
+}
+
+function applyRuntimeFaceGuide() {
+    const band = document.getElementById('face-position-band');
+    if (!band) return;
+
+    const topPercent = runtimeSetupConfig.targetBandTop * 100;
+    const bottomPercent = runtimeSetupConfig.targetBandBottom * 100;
+    band.style.setProperty('--face-band-top', `${topPercent}%`);
+    band.style.setProperty('--face-band-height', `${bottomPercent - topPercent}%`);
+}
+
+function resetTestingSessionState() {
+    rakatCount = 1;
+    standReturnCount = 0;
+    isCurrentlyDown = false;
+    document.getElementById('counter-display').innerText = rakatCount;
+}
+
 function openSettings() {
-    if (appState !== AppState.MAIN_READY) return;
+    const allowedStates = new Set([
+        AppState.MAIN_READY,
+        AppState.POSITIONING,
+        AppState.COUNTDOWN,
+        AppState.TRACKING_PRAYER
+    ]);
+    if (!allowedStates.has(appState)) return;
+
+    settingsReturnState = appState;
+    if (appState !== AppState.MAIN_READY) {
+        setupRunId++;
+    }
+
     setAppState(AppState.SETTINGS);
     renderSettings();
 }
@@ -199,9 +375,61 @@ function openSettings() {
 function closeSettings() {
     saveSettingsForm();
     applyLanguage();
+
+    const cameFromActiveSession = [
+        AppState.POSITIONING,
+        AppState.COUNTDOWN,
+        AppState.TRACKING_PRAYER
+    ].includes(settingsReturnState);
+
+    settingsReturnState = null;
+    renderDeveloperSettingsForm(developerSettings);
+
+    if (cameFromActiveSession && isRunning) {
+        setupRunId++;
+        resetTestingSessionState();
+        standingDetector = StandingDetection.createStandingDetector(runtimeStandingConfig);
+        beginPositioning();
+        return;
+    }
+
     setAppState(AppState.MAIN_READY);
     document.getElementById('status').innerText = textFor('model_ready');
     document.getElementById('sub-status').innerText = textFor('tap_start');
+}
+
+function restoreDeveloperDefaults() {
+    renderDeveloperSettingsForm(developerDefaults);
+}
+
+async function saveAndTestDeveloperSettings() {
+    saveSettingsForm();
+
+    const result = DeveloperSettings.saveSettings(
+        collectDeveloperSettingsForm(),
+        developerDefaults
+    );
+    if (!result.ok) {
+        setDeveloperError(result.errorKey);
+        return false;
+    }
+
+    setDeveloperError();
+    setupRunId++;
+    settingsReturnState = null;
+    refreshRuntimeDeveloperConfig(result.value);
+    resetTestingSessionState();
+
+    if (isRunning && video?.srcObject) {
+        beginPositioning();
+        return true;
+    }
+
+    setAppState(AppState.MAIN_READY);
+    document.getElementById('status').innerText = textFor('model_ready');
+    document.getElementById('sub-status').innerText = textFor('tap_start');
+    await startApp();
+    return true;
 }
 
 function initializeSettings() {
@@ -214,8 +442,10 @@ function initializeSettings() {
         window.speechSynthesis.addEventListener('voiceschanged', populateVoiceOptions);
     }
 
+    renderDeveloperSettingsForm(developerSettings);
     applyLanguage();
     populateVoiceOptions();
+    applyRuntimeFaceGuide();
 }
 
 function showModelError(errorCode) {
@@ -327,10 +557,7 @@ async function startApp() {
 function resetApp() {
     if (appState !== AppState.TRACKING_PRAYER) return;
 
-    rakatCount = 1;
-    standReturnCount = 0;
-    isCurrentlyDown = false;
-    document.getElementById('counter-display').innerText = rakatCount;
+    resetTestingSessionState();
     beginPositioning();
 }
 
@@ -377,6 +604,30 @@ function speak(messageKey, replacements = {}) {
     window.speechSynthesis.speak(utterance);
 }
 
+function speakLiteral(text) {
+    if (!('speechSynthesis' in window) || currentSettings.quietMode) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(String(text));
+    utterance.lang = currentSettings.language === 'en' ? 'en-US' : 'ar-SA';
+    const voice = SettingsManager.findVoice(
+        availableVoices,
+        currentSettings.voiceURI,
+        currentSettings.language
+    );
+    if (voice) utterance.voice = voice;
+    window.speechSynthesis.speak(utterance);
+}
+
+function speakCountdownValue(value) {
+    const messageKey = COUNTDOWN_WORDS[value];
+    if (messageKey) {
+        speak(messageKey);
+        return;
+    }
+    speakLiteral(value);
+}
+
 function beginPositioning() {
     setupRunId++;
     standingDetector.reset();
@@ -387,6 +638,7 @@ function beginPositioning() {
     lastInstructionSpokenAt = -Infinity;
 
     setAppState(AppState.POSITIONING);
+    applyRuntimeFaceGuide();
     document.getElementById('status').innerText = textFor('preparing_position');
     document.getElementById('sub-status').innerText = textFor('follow_guide');
     document.getElementById('setup-message').innerText = '';
@@ -404,7 +656,7 @@ function speakSetupInstruction(result, timestamp) {
 
     const resultChanged = result !== lastSpokenResult;
     const cooldownFinished = timestamp - lastInstructionSpokenAt
-        >= SetupGuide.SETUP_CONFIG.instructionSpeechCooldownMs;
+        >= runtimeSetupConfig.instructionSpeechCooldownMs;
 
     if (resultChanged || cooldownFinished) {
         speak(setupMessageKeyForResult(result));
@@ -427,9 +679,10 @@ function processSetupFrame(keypoints, timestamp) {
     const features = SetupGuide.extractSetupFeatures(
         keypoints,
         video.videoWidth,
-        video.videoHeight
+        video.videoHeight,
+        runtimeSetupConfig
     );
-    const result = SetupGuide.classifySetup(features);
+    const result = SetupGuide.classifySetup(features, runtimeSetupConfig);
     const facePositionBand = document.getElementById('face-position-band');
     const facePositionLabel = document.getElementById('face-position-label');
     const setupMessage = document.getElementById('setup-message');
@@ -442,7 +695,11 @@ function processSetupFrame(keypoints, timestamp) {
 
     if (result === 'POSITION_CORRECT') {
         invalidCountdownSince = null;
-        const faceY = StandingDetection.extractFaceY(keypoints, video.videoHeight);
+        const faceY = StandingDetection.extractFaceY(
+            keypoints,
+            video.videoHeight,
+            runtimeStandingConfig
+        );
         standingDetector.addCalibrationSample(faceY);
 
         if (correctPositionSince === null) {
@@ -450,7 +707,7 @@ function processSetupFrame(keypoints, timestamp) {
         }
 
         if (appState === AppState.POSITIONING
-            && timestamp - correctPositionSince >= SetupGuide.SETUP_CONFIG.validPositionMs) {
+            && timestamp - correctPositionSince >= runtimeSetupConfig.validPositionMs) {
             speak('position_correct');
             beginCountdown();
         }
@@ -464,7 +721,7 @@ function processSetupFrame(keypoints, timestamp) {
 
         if (appState === AppState.COUNTDOWN) {
             if (invalidCountdownSince === null) invalidCountdownSince = timestamp;
-            if (timestamp - invalidCountdownSince >= SetupGuide.SETUP_CONFIG.invalidCountdownGraceMs) {
+            if (timestamp - invalidCountdownSince >= runtimeSetupConfig.invalidCountdownGraceMs) {
                 cancelCountdown(result, timestamp);
             }
         }
@@ -481,7 +738,7 @@ async function beginCountdown() {
     document.getElementById('setup-message').innerText = '';
 
     await StandingDetection.runCountdown({
-        from: StandingDetection.DEFAULT_CONFIG.countdownFrom,
+        from: runtimeStandingConfig.countdownFrom,
         onTick: value => {
             if (currentRunId !== setupRunId || appState !== AppState.COUNTDOWN) return;
             document.getElementById('countdown-display').innerText = value;
@@ -489,7 +746,7 @@ async function beginCountdown() {
         },
         speakValue: value => {
             if (currentRunId !== setupRunId || appState !== AppState.COUNTDOWN) return;
-            speak(COUNTDOWN_WORDS[value]);
+            speakCountdownValue(value);
         }
     });
 
@@ -542,7 +799,11 @@ function handleStandingTransition(transition) {
 }
 
 function processPrayerFrame(keypoints, timestamp) {
-    const faceY = StandingDetection.extractFaceY(keypoints, video.videoHeight);
+    const faceY = StandingDetection.extractFaceY(
+        keypoints,
+        video.videoHeight,
+        runtimeStandingConfig
+    );
     const result = standingDetector.update(faceY, timestamp);
     document.getElementById('status').innerText = result.state === StandingDetection.StandingState.STANDING
         ? textFor('standing')
