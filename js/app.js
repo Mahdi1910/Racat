@@ -32,6 +32,8 @@ let invalidCountdownSince = null;
 let lastSetupResult = null;
 let lastSpokenResult = null;
 let lastInstructionSpokenAt = -Infinity;
+let horizontalGuidanceResult = null;
+let horizontalGuidanceSince = null;
 let settingsReturnState = null;
 let developerInputElements = new Map();
 
@@ -60,6 +62,9 @@ const COUNTDOWN_WORDS = Object.freeze({
 
 const SETUP_MESSAGE_KEYS = Object.freeze({
     FACE_NOT_VISIBLE: 'face_not_visible',
+    SHOULDERS_NOT_VISIBLE: 'shoulders_not_visible',
+    MOVE_LEFT: 'move_left',
+    MOVE_RIGHT: 'move_right',
     FACE_OUTSIDE_TARGET: 'face_here',
     MOVE_BACK_ONE_STEP: 'move_back',
     MOVE_CLOSER_ONE_STEP: 'move_closer',
@@ -334,6 +339,7 @@ function refreshRuntimeDeveloperConfig(nextDeveloperSettings) {
         StandingDetection.DEFAULT_CONFIG
     );
     standingDetector = StandingDetection.createStandingDetector(runtimeStandingConfig);
+    resetHorizontalGuidance();
     applyRuntimeFaceGuide();
 }
 
@@ -628,6 +634,32 @@ function speakCountdownValue(value) {
     speakLiteral(value);
 }
 
+function resetHorizontalGuidance() {
+    horizontalGuidanceResult = null;
+    horizontalGuidanceSince = null;
+}
+
+function directionalInstructionReady(result, timestamp) {
+    const directional = result === 'MOVE_LEFT' || result === 'MOVE_RIGHT';
+    if (!directional) {
+        resetHorizontalGuidance();
+        return true;
+    }
+
+    if (horizontalGuidanceResult !== result) {
+        horizontalGuidanceResult = result;
+        horizontalGuidanceSince = timestamp;
+        return runtimeSetupConfig.horizontalGuidanceConfirmMs === 0;
+    }
+
+    if (horizontalGuidanceSince === null) {
+        horizontalGuidanceSince = timestamp;
+        return runtimeSetupConfig.horizontalGuidanceConfirmMs === 0;
+    }
+
+    return timestamp - horizontalGuidanceSince >= runtimeSetupConfig.horizontalGuidanceConfirmMs;
+}
+
 function beginPositioning() {
     setupRunId++;
     standingDetector.reset();
@@ -636,6 +668,7 @@ function beginPositioning() {
     lastSetupResult = null;
     lastSpokenResult = null;
     lastInstructionSpokenAt = -Infinity;
+    resetHorizontalGuidance();
 
     setAppState(AppState.POSITIONING);
     applyRuntimeFaceGuide();
@@ -652,7 +685,12 @@ function setupMessageKeyForResult(result) {
 }
 
 function speakSetupInstruction(result, timestamp) {
-    if (result === 'POSITION_CORRECT') return;
+    if (result === 'POSITION_CORRECT') {
+        resetHorizontalGuidance();
+        return;
+    }
+
+    if (!directionalInstructionReady(result, timestamp)) return;
 
     const resultChanged = result !== lastSpokenResult;
     const cooldownFinished = timestamp - lastInstructionSpokenAt
@@ -687,14 +725,20 @@ function processSetupFrame(keypoints, timestamp) {
     const facePositionLabel = document.getElementById('face-position-label');
     const setupMessage = document.getElementById('setup-message');
 
-    const distanceResult = result === 'MOVE_BACK_ONE_STEP'
-        || result === 'MOVE_CLOSER_ONE_STEP';
-    setupMessage.innerText = distanceResult ? textFor(setupMessageKeyForResult(result)) : '';
+    const explicitMessage = [
+        'MOVE_BACK_ONE_STEP',
+        'MOVE_CLOSER_ONE_STEP',
+        'SHOULDERS_NOT_VISIBLE',
+        'MOVE_LEFT',
+        'MOVE_RIGHT'
+    ].includes(result);
+    setupMessage.innerText = explicitMessage ? textFor(setupMessageKeyForResult(result)) : '';
     facePositionLabel.hidden = result === 'POSITION_CORRECT';
     facePositionBand.classList.toggle('is-correct', result === 'POSITION_CORRECT');
 
     if (result === 'POSITION_CORRECT') {
         invalidCountdownSince = null;
+        resetHorizontalGuidance();
         const faceY = StandingDetection.extractFaceY(
             keypoints,
             video.videoHeight,
