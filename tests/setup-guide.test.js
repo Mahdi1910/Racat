@@ -1,130 +1,132 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 
-const modulePath = path.join(__dirname, '..', 'js', 'setup-guide.js');
-const moduleExists = fs.existsSync(modulePath);
-const api = moduleExists ? require(modulePath) : {};
+const api = require('../js/setup-guide.js');
 
-test('setup guide module exists', () => {
-    assert.equal(moduleExists, true);
-});
+function goodKeypoints(overrides = {}) {
+    const points = {
+        nose: { name: 'nose', x: 500, y: 200, score: 0.95 },
+        left_eye: { name: 'left_eye', x: 470, y: 190, score: 0.9 },
+        right_eye: { name: 'right_eye', x: 530, y: 190, score: 0.9 },
+        left_shoulder: { name: 'left_shoulder', x: 350, y: 430, score: 0.95 },
+        right_shoulder: { name: 'right_shoulder', x: 650, y: 430, score: 0.95 }
+    };
+    for (const [name, patch] of Object.entries(overrides)) {
+        if (patch === null) delete points[name];
+        else points[name] = { ...points[name], ...patch };
+    }
+    return Object.values(points);
+}
 
-function correctFeatures(overrides = {}) {
+function features(overrides = {}) {
     return {
         faceVisible: true,
-        faceWidth: 0.10,
-        faceCenterY: 0.20,
+        faceCenterX: 0.5,
+        faceCenterY: 0.2,
+        faceWidth: 0.06,
+        leftShoulderVisible: true,
+        rightShoulderVisible: true,
+        leftShoulderSafe: true,
+        rightShoulderSafe: true,
+        leftShoulderX: 0.35,
+        rightShoulderX: 0.65,
+        shoulderCenterX: 0.5,
+        horizontalBodyCenterX: 0.5,
         ...overrides
     };
 }
 
-const classificationCases = [
-    ['FACE_NOT_VISIBLE', { faceVisible: false }],
-    ['MOVE_BACK_ONE_STEP', { faceWidth: 0.201 }],
-    ['MOVE_CLOSER_ONE_STEP', { faceWidth: 0.019 }],
-    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.31 }],
-    ['FACE_OUTSIDE_TARGET', { faceCenterY: 0.009 }],
-    ['POSITION_CORRECT', {}]
-];
-
-for (const [expected, overrides] of classificationCases) {
-    test(`classifies ${expected}`, () => {
-        assert.equal(typeof api.classifySetup, 'function');
-        assert.equal(api.classifySetup(correctFeatures(overrides)), expected);
-    });
-}
-
-test('accepts the exact vertical target boundaries', () => {
-    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.01 })), 'POSITION_CORRECT');
-    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.30 })), 'POSITION_CORRECT');
+test('Plan 8 setup defaults use 1% through 50% and shoulder framing defaults', () => {
+    assert.equal(api.SETUP_CONFIG.targetBandTop, 0.01);
+    assert.equal(api.SETUP_CONFIG.targetBandBottom, 0.50);
+    assert.equal(api.SETUP_CONFIG.shoulderConfidence, 0.35);
+    assert.equal(api.SETUP_CONFIG.shoulderEdgeMargin, 0.02);
+    assert.equal(api.SETUP_CONFIG.bodySafeLeft, 0.25);
+    assert.equal(api.SETUP_CONFIG.bodySafeRight, 0.75);
+    assert.equal(api.SETUP_CONFIG.horizontalGuidanceConfirmMs, 1000);
 });
 
-test('rejects positions just outside the vertical target boundaries', () => {
-    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.009 })), 'FACE_OUTSIDE_TARGET');
-    assert.equal(api.classifySetup(correctFeatures({ faceCenterY: 0.301 })), 'FACE_OUTSIDE_TARGET');
-});
-
-test('accepts the exact face-width distance boundaries', () => {
-    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.02 })), 'POSITION_CORRECT');
-    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.20 })), 'POSITION_CORRECT');
-});
-
-test('rejects face width just outside the allowed distance boundaries', () => {
-    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.019 })), 'MOVE_CLOSER_ONE_STEP');
-    assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.201 })), 'MOVE_BACK_ONE_STEP');
-});
-
-test('runtime setup config overrides position, distance, and confidence defaults', () => {
-    const runtimeConfig = {
-        ...api.SETUP_CONFIG,
-        faceConfidence: 0.80,
-        targetBandTop: 0.05,
-        targetBandBottom: 0.35,
-        minimumFaceWidth: 0.04,
-        maximumFaceWidth: 0.24
-    };
-
-    assert.equal(
-        api.classifySetup(correctFeatures({ faceCenterY: 0.03 }), runtimeConfig),
-        'FACE_OUTSIDE_TARGET'
-    );
-    assert.equal(
-        api.classifySetup(correctFeatures({ faceCenterY: 0.34, faceWidth: 0.23 }), runtimeConfig),
-        'POSITION_CORRECT'
-    );
-    assert.equal(
-        api.classifySetup(correctFeatures({ faceWidth: 0.03 }), runtimeConfig),
-        'MOVE_CLOSER_ONE_STEP'
-    );
-
-    const hidden = api.extractSetupFeatures([
-        { name: 'left_eye', x: 400, y: 160, score: 0.75 },
-        { name: 'right_eye', x: 600, y: 180, score: 0.75 }
-    ], 1000, 1000, runtimeConfig);
-    assert.equal(hidden.faceVisible, false);
-
-    const visible = api.extractSetupFeatures([
-        { name: 'left_eye', x: 400, y: 160, score: 0.85 },
-        { name: 'right_eye', x: 600, y: 180, score: 0.85 }
-    ], 1000, 1000, runtimeConfig);
-    assert.equal(visible.faceVisible, true);
-});
-
-test('does not require lighting information', () => {
-    assert.equal(api.classifySetup(correctFeatures()), 'POSITION_CORRECT');
-});
-
-test('does not require orientation information', () => {
-    assert.equal(api.classifySetup(correctFeatures()), 'POSITION_CORRECT');
-});
-
-test('extracts normalized face center and width from reliable face points', () => {
-    assert.equal(typeof api.extractSetupFeatures, 'function');
-    const result = api.extractSetupFeatures([
-        { name: 'left_eye', x: 400, y: 160, score: 0.9 },
-        { name: 'right_eye', x: 600, y: 180, score: 0.9 },
-        { name: 'nose', x: 500, y: 170, score: 0.9 },
-        { name: 'left_shoulder', x: 200, y: 500, score: 0.99 }
-    ], 1000, 1000);
-
+test('face and both reliable shoulders can pass setup', () => {
+    const result = api.extractSetupFeatures(goodKeypoints(), 1000, 1000);
     assert.equal(result.faceVisible, true);
-    assert.equal(result.faceCenterY, 0.17);
-    assert.equal(result.faceWidth, 0.20);
+    assert.equal(result.leftShoulderSafe, true);
+    assert.equal(result.rightShoulderSafe, true);
+    assert.equal(api.classifySetup(result), 'POSITION_CORRECT');
 });
 
-test('requires at least two reliable face points', () => {
+test('missing left shoulder cannot pass setup', () => {
+    const result = api.extractSetupFeatures(goodKeypoints({ left_shoulder: null }), 1000, 1000);
+    assert.equal(result.leftShoulderSafe, false);
+    assert.notEqual(api.classifySetup(result), 'POSITION_CORRECT');
+});
+
+test('missing right shoulder cannot pass setup', () => {
+    const result = api.extractSetupFeatures(goodKeypoints({ right_shoulder: null }), 1000, 1000);
+    assert.equal(result.rightShoulderSafe, false);
+    assert.notEqual(api.classifySetup(result), 'POSITION_CORRECT');
+});
+
+test('low-confidence shoulder does not count', () => {
+    const result = api.extractSetupFeatures(goodKeypoints({ left_shoulder: { score: 0.34 } }), 1000, 1000);
+    assert.equal(result.leftShoulderSafe, false);
+    assert.notEqual(api.classifySetup(result), 'POSITION_CORRECT');
+});
+
+test('out-of-frame shoulder does not count', () => {
+    const result = api.extractSetupFeatures(goodKeypoints({ left_shoulder: { x: -20 } }), 1000, 1000);
+    assert.equal(result.leftShoulderVisible, false);
+    assert.equal(result.leftShoulderSafe, false);
+});
+
+test('shoulder inside frame but inside the edge margin is not safely framed', () => {
+    const result = api.extractSetupFeatures(goodKeypoints({ left_shoulder: { x: 10 } }), 1000, 1000);
+    assert.equal(result.leftShoulderVisible, true);
+    assert.equal(result.leftShoulderSafe, false);
+});
+
+test('ambiguous missing shoulder returns SHOULDERS_NOT_VISIBLE', () => {
+    assert.equal(api.classifySetup(features({ leftShoulderVisible: false, leftShoulderSafe: false, leftShoulderX: null, horizontalBodyCenterX: 0.5 })), 'SHOULDERS_NOT_VISIBLE');
+});
+
+test('raw body too far left gives isolated physical MOVE_LEFT mapping', () => {
+    const value = api.classifySetup(features({ leftShoulderSafe: false, leftShoulderX: 0.01, horizontalBodyCenterX: 0.20 }));
+    assert.equal(value, 'MOVE_LEFT');
+    assert.equal(api.mapRawHorizontalSideToInstruction('RAW_LEFT'), 'MOVE_LEFT');
+});
+
+test('raw body too far right gives isolated physical MOVE_RIGHT mapping', () => {
+    const value = api.classifySetup(features({ rightShoulderSafe: false, rightShoulderX: 0.99, horizontalBodyCenterX: 0.80 }));
+    assert.equal(value, 'MOVE_RIGHT');
+    assert.equal(api.mapRawHorizontalSideToInstruction('RAW_RIGHT'), 'MOVE_RIGHT');
+});
+
+test('distance checks still apply after shoulder framing passes', () => {
+    assert.equal(api.classifySetup(features({ faceWidth: 0.21 })), 'MOVE_BACK_ONE_STEP');
+    assert.equal(api.classifySetup(features({ faceWidth: 0.019 })), 'MOVE_CLOSER_ONE_STEP');
+});
+
+test('vertical range accepts exact 1% and 50% boundaries', () => {
+    assert.equal(api.classifySetup(features({ faceCenterY: 0.01 })), 'POSITION_CORRECT');
+    assert.equal(api.classifySetup(features({ faceCenterY: 0.50 })), 'POSITION_CORRECT');
+});
+
+test('vertical range rejects values just outside 1% and 50%', () => {
+    assert.equal(api.classifySetup(features({ faceCenterY: 0.009 })), 'FACE_OUTSIDE_TARGET');
+    assert.equal(api.classifySetup(features({ faceCenterY: 0.501 })), 'FACE_OUTSIDE_TARGET');
+});
+
+test('face must still have at least two reliable points', () => {
     const result = api.extractSetupFeatures([
-        { name: 'nose', x: 500, y: 170, score: 0.9 },
-        { name: 'left_eye', x: 400, y: 160, score: 0.1 }
+        { name: 'nose', x: 500, y: 200, score: 0.9 },
+        { name: 'left_shoulder', x: 350, y: 430, score: 0.95 },
+        { name: 'right_shoulder', x: 650, y: 430, score: 0.95 }
     ], 1000, 1000);
-
     assert.equal(result.faceVisible, false);
+    assert.equal(api.classifySetup(result), 'FACE_NOT_VISIBLE');
 });
 
-test('removed setup checks are no longer exported', () => {
-    assert.equal(api.measureBrightness, undefined);
-    assert.equal(api.createLightingMonitor, undefined);
-    assert.equal(api.normalizePhoneAngle, undefined);
+test('runtime shoulder confidence and margin overrides change behavior', () => {
+    const config = { ...api.SETUP_CONFIG, shoulderConfidence: 0.8, shoulderEdgeMargin: 0.10 };
+    const result = api.extractSetupFeatures(goodKeypoints({ left_shoulder: { x: 80, score: 0.79 }, right_shoulder: { score: 0.95 } }), 1000, 1000, config);
+    assert.equal(result.leftShoulderSafe, false);
 });
