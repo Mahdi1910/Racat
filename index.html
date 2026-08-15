@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>عداد الركعات المطور</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/developer-settings.css">
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.22.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.22.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0"></script>
@@ -131,6 +132,26 @@
                     </span>
                     <input id="quietModeToggle" type="checkbox">
                 </label>
+
+                <details id="developer-options" class="developer-options">
+                    <summary>
+                        <span data-dev-i18n="developer_title">خيارات المطور للاختبار</span>
+                        <span class="developer-badge" data-dev-i18n="developer_badge">مؤقت</span>
+                    </summary>
+                    <p class="developer-intro" data-dev-i18n="developer_intro">
+                        غيّر أرقام التعرف ثم اضغط حفظ واختبار.
+                    </p>
+                    <div id="developer-settings-error" class="developer-settings-error" hidden></div>
+                    <div id="developer-settings-list"></div>
+                    <div class="developer-actions">
+                        <button id="developerRestoreDefaultsBtn" class="btn-secondary developer-restore" type="button" onclick="restoreDeveloperDefaults()">
+                            <span data-dev-i18n="developer_restore_defaults">استعادة القيم الحالية</span>
+                        </button>
+                        <button id="developerSaveTestBtn" class="btn-primary" type="button" onclick="saveAndTestDeveloperSettings()">
+                            <span data-dev-i18n="developer_save_test">حفظ واختبار</span>
+                        </button>
+                    </div>
+                </details>
             </div>
         </section>
     </div>
@@ -139,6 +160,7 @@
     <script src="js/setup-guide.js"></script>
     <script src="js/standing-detector.js"></script>
     <script src="js/settings-manager.js"></script>
+    <script src="js/developer-settings.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
