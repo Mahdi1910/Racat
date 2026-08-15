@@ -14,46 +14,64 @@ function Assert-Condition {
 $projectDir = Split-Path -Parent $PSScriptRoot
 $htmlPath = Join-Path $projectDir 'index.html'
 $cssPath = Join-Path $projectDir 'css\styles.css'
+$developerCssPath = Join-Path $projectDir 'css\developer-settings.css'
 $jsPath = Join-Path $projectDir 'js\app.js'
 $detectorPath = Join-Path $projectDir 'js\standing-detector.js'
 $modelManagerPath = Join-Path $projectDir 'js\model-manager.js'
 $setupGuidePath = Join-Path $projectDir 'js\setup-guide.js'
 $settingsManagerPath = Join-Path $projectDir 'js\settings-manager.js'
+$developerSettingsPath = Join-Path $projectDir 'js\developer-settings.js'
 $appFlowTestPath = Join-Path $projectDir 'tests\app-flow.test.js'
+$developerSettingsTestPath = Join-Path $projectDir 'tests\developer-settings.test.js'
 $httpsUtilsPath = Join-Path $projectDir 'scripts\https-utils.ps1'
 $launcherPath = Join-Path $projectDir 'start-https-server.ps1'
 
-Assert-Condition (Test-Path -LiteralPath $htmlPath) 'index.html is missing.'
-Assert-Condition (Test-Path -LiteralPath $cssPath) 'styles.css is missing.'
-Assert-Condition (Test-Path -LiteralPath $jsPath) 'app.js is missing.'
-Assert-Condition (Test-Path -LiteralPath $detectorPath) 'standing-detector.js is missing.'
-Assert-Condition (Test-Path -LiteralPath $modelManagerPath) 'model-manager.js is missing.'
-Assert-Condition (Test-Path -LiteralPath $setupGuidePath) 'setup-guide.js is missing.'
-Assert-Condition (Test-Path -LiteralPath $settingsManagerPath) 'settings-manager.js is missing.'
-Assert-Condition (Test-Path -LiteralPath $appFlowTestPath) 'tests/app-flow.test.js is missing.'
-Assert-Condition (Test-Path -LiteralPath $httpsUtilsPath) 'scripts/https-utils.ps1 is missing.'
-Assert-Condition (Test-Path -LiteralPath $launcherPath) 'start-https-server.ps1 is missing.'
+$requiredPaths = @(
+    $htmlPath,
+    $cssPath,
+    $developerCssPath,
+    $jsPath,
+    $detectorPath,
+    $modelManagerPath,
+    $setupGuidePath,
+    $settingsManagerPath,
+    $developerSettingsPath,
+    $appFlowTestPath,
+    $developerSettingsTestPath,
+    $httpsUtilsPath,
+    $launcherPath
+)
+foreach ($path in $requiredPaths) {
+    Assert-Condition (Test-Path -LiteralPath $path) "Required file is missing: $path"
+}
 
 $html = Get-Content -LiteralPath $htmlPath -Raw -Encoding utf8
 $css = Get-Content -LiteralPath $cssPath -Raw -Encoding utf8
+$developerCss = Get-Content -LiteralPath $developerCssPath -Raw -Encoding utf8
 $js = Get-Content -LiteralPath $jsPath -Raw -Encoding utf8
 $detector = Get-Content -LiteralPath $detectorPath -Raw -Encoding utf8
 $modelManager = Get-Content -LiteralPath $modelManagerPath -Raw -Encoding utf8
 $setupGuide = Get-Content -LiteralPath $setupGuidePath -Raw -Encoding utf8
 $settingsManager = Get-Content -LiteralPath $settingsManagerPath -Raw -Encoding utf8
-$httpsUtils = Get-Content -LiteralPath $httpsUtilsPath -Raw -Encoding utf8
+$developerSettings = Get-Content -LiteralPath $developerSettingsPath -Raw -Encoding utf8
 $launcher = Get-Content -LiteralPath $launcherPath -Raw -Encoding utf8
 
-Assert-Condition ($html.Contains('<link rel="stylesheet" href="css/styles.css">')) 'index.html does not load css/styles.css.'
-Assert-Condition ($html.Contains('<script src="js/model-manager.js"></script>')) 'index.html does not load js/model-manager.js.'
-Assert-Condition ($html.Contains('<script src="js/setup-guide.js"></script>')) 'index.html does not load js/setup-guide.js.'
-Assert-Condition ($html.Contains('<script src="js/standing-detector.js"></script>')) 'index.html does not load js/standing-detector.js.'
-Assert-Condition ($html.Contains('<script src="js/settings-manager.js"></script>')) 'index.html does not load js/settings-manager.js.'
-Assert-Condition ($html.Contains('<script src="js/app.js"></script>')) 'index.html does not load js/app.js.'
-Assert-Condition ($html.IndexOf('<script src="js/model-manager.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'model-manager.js must load before app.js.'
-Assert-Condition ($html.IndexOf('<script src="js/setup-guide.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'setup-guide.js must load before app.js.'
-Assert-Condition ($html.IndexOf('<script src="js/standing-detector.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'standing-detector.js must load before app.js.'
-Assert-Condition ($html.IndexOf('<script src="js/settings-manager.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'settings-manager.js must load before app.js.'
+$requiredAssets = @(
+    '<link rel="stylesheet" href="css/styles.css">',
+    '<link rel="stylesheet" href="css/developer-settings.css">',
+    '<script src="js/model-manager.js"></script>',
+    '<script src="js/setup-guide.js"></script>',
+    '<script src="js/standing-detector.js"></script>',
+    '<script src="js/settings-manager.js"></script>',
+    '<script src="js/developer-settings.js"></script>',
+    '<script src="js/app.js"></script>'
+)
+foreach ($token in $requiredAssets) {
+    Assert-Condition ($html.Contains($token)) "index.html does not load required asset: $token"
+}
+Assert-Condition ($html.IndexOf('<script src="js/developer-settings.js"></script>') -lt $html.IndexOf('<script src="js/app.js"></script>')) 'developer-settings.js must load before app.js.'
+Assert-Condition ($html.IndexOf('<script src="js/setup-guide.js"></script>') -lt $html.IndexOf('<script src="js/developer-settings.js"></script>')) 'setup-guide.js must load before developer-settings.js.'
+Assert-Condition ($html.IndexOf('<script src="js/standing-detector.js"></script>') -lt $html.IndexOf('<script src="js/developer-settings.js"></script>')) 'standing-detector.js must load before developer-settings.js.'
 Assert-Condition ($html -notmatch '<style(?:\s[^>]*)?>') 'index.html still contains an embedded style block.'
 Assert-Condition ($html -notmatch '<script>\s*let detector;') 'index.html still contains the embedded application script.'
 
@@ -78,6 +96,13 @@ $requiredMarkup = @(
     'id="languageSelect"',
     'id="voiceSelect"',
     'id="quietModeToggle"',
+    'id="developer-options"',
+    'id="developer-settings-list"',
+    'id="developer-settings-error"',
+    'id="developerRestoreDefaultsBtn"',
+    'id="developerSaveTestBtn"',
+    'onclick="restoreDeveloperDefaults()"',
+    'onclick="saveAndTestDeveloperSettings()"',
     'id="startBtn"',
     'onclick="startApp()"',
     'id="counter-display"',
@@ -135,6 +160,21 @@ foreach ($selector in $requiredSelectors) {
     Assert-Condition ($css.Contains($selector)) "styles.css lost required selector: $selector"
 }
 
+$requiredDeveloperSelectors = @(
+    '.settings-view',
+    '.developer-options',
+    '.developer-field',
+    '.developer-stepper',
+    '.developer-step-button',
+    '.developer-settings-error',
+    '.developer-actions',
+    '--face-band-top',
+    '--face-band-height'
+)
+foreach ($selector in $requiredDeveloperSelectors) {
+    Assert-Condition ($developerCss.Contains($selector)) "developer-settings.css lost required selector: $selector"
+}
+
 $requiredBehavior = @(
     'const AppState = Object.freeze({',
     "CHECKING_MODEL: 'CHECKING_MODEL'",
@@ -157,36 +197,34 @@ $requiredBehavior = @(
     'function setAppState(nextState)',
     'function openSettings()',
     'function closeSettings()',
-    'function populateVoiceOptions()',
-    'function applyLanguage()',
-    'function resetApp()',
-    "if (appState !== AppState.TRACKING_PRAYER) return;",
-    'function classifyCameraError(error)',
-    'async function setupCamera()',
+    'function saveAndTestDeveloperSettings()',
+    'function restoreDeveloperDefaults()',
+    'function refreshRuntimeDeveloperConfig(',
+    'function applyRuntimeFaceGuide()',
+    'function renderDeveloperSettingsForm(',
+    'runtimeSetupConfig',
+    'runtimeStandingConfig',
+    'DeveloperSettings.saveSettings(',
+    'DeveloperSettings.buildSetupConfig(',
+    'DeveloperSettings.buildStandingConfig(',
+    'StandingDetection.createStandingDetector(runtimeStandingConfig)',
+    'SetupGuide.extractSetupFeatures(',
+    'SetupGuide.classifySetup(features, runtimeSetupConfig)',
+    'from: runtimeStandingConfig.countdownFrom',
+    'runtimeSetupConfig.validPositionMs',
+    'runtimeSetupConfig.invalidCountdownGraceMs',
+    'runtimeSetupConfig.instructionSpeechCooldownMs',
+    'StandingDetection.extractFaceY(',
+    'runtimeStandingConfig',
+    'requestAnimationFrame(renderResult);',
+    'if (standReturnCount === 2)',
+    "transition === 'LEFT_STANDING'",
+    "transition === 'RETURNED_TO_STANDING'",
     'const mediaDevices = globalThis.navigator?.mediaDevices;',
     'const tfApi = globalThis.tf;',
     'const poseApi = globalThis.poseDetection;',
     "error.code || 'UNKNOWN'",
-    'function speak(messageKey, replacements = {})',
-    'SettingsManager.createSpeechRequest(',
-    'function processPose(keypoints)',
-    'async function renderResult()',
-    "facingMode: 'user'",
-    'ModelManager.createModelManager({',
-    'SetupGuide.classifySetup(',
-    "FACE_NOT_VISIBLE: 'face_not_visible'",
-    "FACE_OUTSIDE_TARGET: 'face_here'",
-    "MOVE_BACK_ONE_STEP: 'move_back'",
-    "MOVE_CLOSER_ONE_STEP: 'move_closer'",
-    "result === 'POSITION_CORRECT'",
-    'StandingDetection.createStandingDetector()',
-    'StandingDetection.runCountdown({',
-    'StandingDetection.extractFaceY(',
-    "transition === 'LEFT_STANDING'",
-    "transition === 'RETURNED_TO_STANDING'",
-    'if (standReturnCount === 2)',
-    'utterance.lang = request.language;',
-    'requestAnimationFrame(renderResult);'
+    "facingMode: 'user'"
 )
 foreach ($token in $requiredBehavior) {
     Assert-Condition ($js.Contains($token)) "app.js lost behavior-critical code: $token"
@@ -279,6 +317,35 @@ $requiredSettingsBehavior = @(
 )
 foreach ($token in $requiredSettingsBehavior) {
     Assert-Condition ($settingsManager.Contains($token)) "settings-manager.js lost required behavior: $token"
+}
+
+$requiredDeveloperSettingsBehavior = @(
+    "const STORAGE_KEY = 'racat-developer-settings-v1';",
+    'const FIELD_DEFINITIONS = Object.freeze([',
+    'function createDefaults(',
+    'function validateSettings(',
+    'function loadSettings(',
+    'function saveSettings(',
+    'function buildSetupConfig(',
+    'function buildStandingConfig(',
+    'setupFaceConfidencePct',
+    'targetBandTopPct',
+    'targetBandBottomPct',
+    'minimumFaceWidthPct',
+    'maximumFaceWidthPct',
+    'validPositionSeconds',
+    'invalidCountdownGraceSeconds',
+    'instructionSpeechCooldownSeconds',
+    'trackingFaceConfidencePct',
+    'countdownFrom',
+    'minimumCalibrationSamples',
+    'standingZoneRadiusPct',
+    'leaveStandingConfirmSeconds',
+    'missingFaceConfirmSeconds',
+    'returnToStandingConfirmSeconds'
+)
+foreach ($token in $requiredDeveloperSettingsBehavior) {
+    Assert-Condition ($developerSettings.Contains($token)) "developer-settings.js lost required behavior: $token"
 }
 
 $forbiddenSettingsMarkup = @(
