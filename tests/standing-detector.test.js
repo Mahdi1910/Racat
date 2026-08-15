@@ -76,6 +76,38 @@ test('widely spread calibration samples now succeed and use the median', () => {
     assert.equal(result.standingFaceY, 0.17);
 });
 
+test('runtime standing config overrides confidence, calibration count, tolerance, and timings', () => {
+    const runtimeConfig = {
+        ...api.DEFAULT_CONFIG,
+        faceConfidence: 0.80,
+        minimumCalibrationSamples: 2,
+        standingZoneRadius: 0.10,
+        leaveStandingConfirmMs: 500,
+        missingFaceConfirmMs: 900,
+        returnToStandingConfirmMs: 700
+    };
+
+    assert.equal(api.extractFaceY([
+        { name: 'nose', y: 200, score: 0.75 }
+    ], 1000, runtimeConfig), null);
+    assert.equal(api.extractFaceY([
+        { name: 'nose', y: 200, score: 0.85 }
+    ], 1000, runtimeConfig), 0.2);
+
+    const detector = api.createStandingDetector(runtimeConfig);
+    detector.addCalibrationSample(0.20);
+    detector.addCalibrationSample(0.20);
+    assert.equal(detector.finishCalibration().ok, true);
+
+    detector.update(0.31, 0);
+    assert.equal(detector.update(0.31, 499).state, api.StandingState.STANDING);
+    assert.equal(detector.update(0.31, 500).transition, 'LEFT_STANDING');
+
+    detector.update(0.20, 600);
+    assert.equal(detector.update(0.20, 1299).state, api.StandingState.NOT_STANDING);
+    assert.equal(detector.update(0.20, 1300).transition, 'RETURNED_TO_STANDING');
+});
+
 test('reset clears a successful calibration completely', () => {
     const detector = createCalibratedDetector();
 
