@@ -56,6 +56,42 @@ test('rejects face width just outside the allowed distance boundaries', () => {
     assert.equal(api.classifySetup(correctFeatures({ faceWidth: 0.201 })), 'MOVE_BACK_ONE_STEP');
 });
 
+test('runtime setup config overrides position, distance, and confidence defaults', () => {
+    const runtimeConfig = {
+        ...api.SETUP_CONFIG,
+        faceConfidence: 0.80,
+        targetBandTop: 0.05,
+        targetBandBottom: 0.35,
+        minimumFaceWidth: 0.04,
+        maximumFaceWidth: 0.24
+    };
+
+    assert.equal(
+        api.classifySetup(correctFeatures({ faceCenterY: 0.03 }), runtimeConfig),
+        'FACE_OUTSIDE_TARGET'
+    );
+    assert.equal(
+        api.classifySetup(correctFeatures({ faceCenterY: 0.34, faceWidth: 0.23 }), runtimeConfig),
+        'POSITION_CORRECT'
+    );
+    assert.equal(
+        api.classifySetup(correctFeatures({ faceWidth: 0.03 }), runtimeConfig),
+        'MOVE_CLOSER_ONE_STEP'
+    );
+
+    const hidden = api.extractSetupFeatures([
+        { name: 'left_eye', x: 400, y: 160, score: 0.75 },
+        { name: 'right_eye', x: 600, y: 180, score: 0.75 }
+    ], 1000, 1000, runtimeConfig);
+    assert.equal(hidden.faceVisible, false);
+
+    const visible = api.extractSetupFeatures([
+        { name: 'left_eye', x: 400, y: 160, score: 0.85 },
+        { name: 'right_eye', x: 600, y: 180, score: 0.85 }
+    ], 1000, 1000, runtimeConfig);
+    assert.equal(visible.faceVisible, true);
+});
+
 test('does not require lighting information', () => {
     assert.equal(api.classifySetup(correctFeatures()), 'POSITION_CORRECT');
 });
