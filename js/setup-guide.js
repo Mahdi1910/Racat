@@ -129,10 +129,7 @@
             && reliablePoint(point, config.faceConfidence)
         ));
 
-        if (facePoints.length < 2) {
-            return emptyFeatures();
-        }
-
+        const faceVisible = facePoints.length >= 2;
         const faceXValues = facePoints.map(point => point.x / videoWidth);
         const faceYValues = facePoints.map(point => point.y / videoHeight);
         const leftShoulderPoint = keypoints.find(point => point.name === 'left_shoulder');
@@ -161,10 +158,12 @@
         ];
 
         return {
-            faceVisible: true,
-            faceCenterX: median(faceXValues),
-            faceCenterY: median(faceYValues),
-            faceWidth: Math.max(...faceXValues) - Math.min(...faceXValues),
+            faceVisible,
+            faceCenterX: faceVisible ? median(faceXValues) : null,
+            faceCenterY: faceVisible ? median(faceYValues) : null,
+            faceWidth: faceVisible
+                ? Math.max(...faceXValues) - Math.min(...faceXValues)
+                : null,
             leftShoulderVisible,
             rightShoulderVisible,
             leftShoulderSafe,
@@ -179,7 +178,11 @@
     }
 
     function classifySetup(features, config = SETUP_CONFIG) {
-        if (!features.faceVisible) return 'FACE_NOT_VISIBLE';
+        if (!features.faceVisible) {
+            const rawSide = rawHorizontalSideFromFeatures(features, config);
+            const movement = mapRawHorizontalSideToInstruction(rawSide);
+            return movement || 'FACE_NOT_VISIBLE';
+        }
 
         const shouldersSafe = features.leftShoulderSafe && features.rightShoulderSafe;
         if (!shouldersSafe) {
